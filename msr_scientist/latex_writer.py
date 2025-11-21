@@ -39,7 +39,7 @@ class LatexPaperWriter:
         """
         try:
             from pylatex import Document, Section, Subsection, Command
-            from pylatex.utils import NoEscape, italic, bold
+            from pylatex.utils import NoEscape
 
             # Create document
             doc = Document(documentclass="article")
