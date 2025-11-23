@@ -1,0 +1,3 @@
+# Minimal dependencies for MSR-Scientist
+smolagents[toolkit]>=1.0.0
+pylatex>=1.4.2
