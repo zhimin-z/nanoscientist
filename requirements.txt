@@ -27,6 +27,8 @@ requests>=2.31.0
 
 # Stage 2: Execute & Analyze (execute_analyze.py)
 mini-swe-agent>=0.1.0
+docker>=7.0.0
+PyYAML>=6.0
 
 # Stage 3: Report Generation (report_write.py)
 # Note: Requires tectonic binary (self-contained LaTeX engine)
