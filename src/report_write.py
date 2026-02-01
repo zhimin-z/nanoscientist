@@ -375,7 +375,7 @@ def _generate_acm_latex(
     for author in author_list:
         escaped_author = _escape_latex(author)
         latex += f"\\author{{{escaped_author}}}\n"
-        latex += "\\affiliation{%\n  \\institution{Research Institution}}\n"
+        latex += "\\affiliation{%\n  \\institution{Research Institution}\n  \\country{USA}}\n"
         latex += f"\\email{{{escaped_author.lower().replace(' ', '.')}@research.org}}\n\n"
 
     latex += r"""
