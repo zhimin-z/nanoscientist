@@ -66,6 +66,19 @@ more content
 """
 
 
+def build_system_prompt(question):
+    """Build a system message that anchors the research question as the primary directive."""
+    return (
+        f"You are a research assistant working on a specific research project.\n"
+        f"YOUR PRIMARY RESEARCH QUESTION: {question}\n\n"
+        f"CRITICAL: Every output you produce — surveys, code, experiments, and papers — "
+        f"MUST be specifically and directly about this research question. "
+        f"Do NOT produce generic frameworks or methodologies. "
+        f"Your work must concretely address the specific subject, platform, or topic named in the question above. "
+        f"If the question mentions a specific URL, platform, or community, your output must focus on THAT specific target."
+    )
+
+
 def truncate_context(data, max_chars=MAX_CONTEXT_CHARS):
     """Truncate large data for prompt inclusion to avoid context overflow."""
     text = json.dumps(data, indent=2) if isinstance(data, (dict, list)) else str(data)
@@ -74,7 +87,7 @@ def truncate_context(data, max_chars=MAX_CONTEXT_CHARS):
     return text[:max_chars] + f"\n... (truncated, {len(text)} total chars)"
 
 
-def summarize_files(files, max_per_file=500):
+def summarize_files(files, max_per_file=1500):
     """Create a brief summary of file contents for prompt context."""
     if not files:
         return "(none)"
@@ -201,11 +214,15 @@ class LiteratureSurveyNode(Node):
         if inputs["is_final"]:
             urgency = "\n**THIS IS YOUR FINAL ITERATION. You MUST return status: done and deliver complete output.**\n"
 
-        prompt = f"""Execute the literature survey skill:
+        system_prompt = build_system_prompt(inputs['question'])
 
+        prompt = f"""RESEARCH QUESTION (this is your primary focus): {inputs['question']}
+
+Execute the literature survey skill below. Your survey MUST specifically address the research question above — not a generic survey of the field.
+
+Skill instructions:
 {inputs['skill']}
 
-Research Question: {inputs['question']}
 Stage Budget: {inputs['stage_rounds']} rounds (for this stage only)
 Current Iteration: {inputs['iteration']} of {MAX_ITERATIONS['survey']} max
 {urgency}
@@ -226,8 +243,10 @@ File sections to include:
 
 If status is "done", ensure the survey is comprehensive and publication-ready.
 Prefer returning "done" with complete output over multiple iterations.
+
+REMINDER: Your survey must be specifically about: {inputs['question']}
 """
-        return call_llm(prompt, max_tokens=8192)
+        return call_llm(prompt, max_tokens=8192, system_prompt=system_prompt)
 
     def post(self, shared, prep_res, exec_res):
         try:
@@ -289,11 +308,15 @@ class MethodImplementationNode(Node):
         if inputs["is_final"]:
             urgency = "\n**THIS IS YOUR FINAL ITERATION. You MUST return status: done and deliver complete, working code.**\n"
 
-        prompt = f"""Execute the method implementation skill:
+        system_prompt = build_system_prompt(inputs['question'])
 
+        prompt = f"""RESEARCH QUESTION (this is your primary focus): {inputs['question']}
+
+Execute the method implementation skill below. Your implementation MUST specifically address the research question above — not a generic framework.
+
+Skill instructions:
 {inputs['skill']}
 
-Research Question: {inputs['question']}
 Literature Survey Summary: {survey_ctx}
 Stage Budget: {inputs['stage_rounds']} rounds (for this stage only)
 Current Iteration: {inputs['iteration']} of {MAX_ITERATIONS['method']} max
@@ -315,8 +338,10 @@ File sections to include:
 ===END===
 
 Deliver ALL code in a single iteration when possible. Only use "continue" if the implementation genuinely needs more work.
+
+REMINDER: Your implementation must be specifically about: {inputs['question']}
 """
-        return call_llm(prompt, max_tokens=8192)
+        return call_llm(prompt, max_tokens=8192, system_prompt=system_prompt)
 
     def post(self, shared, prep_res, exec_res):
         try:
@@ -376,11 +401,15 @@ class ExperimentalEvaluationNode(Node):
         if inputs["is_final"]:
             urgency = "\n**THIS IS YOUR FINAL ITERATION. You MUST return status: done and deliver complete experiment code.**\n"
 
-        prompt = f"""Execute experimental evaluation:
+        system_prompt = build_system_prompt(inputs['question'])
 
+        prompt = f"""RESEARCH QUESTION (this is your primary focus): {inputs['question']}
+
+Execute the experimental evaluation skill below. Your experiments MUST specifically evaluate the research question above — not generic benchmarks.
+
+Skill instructions:
 {inputs['skill']}
 
-Research Question: {inputs['question']}
 Method Implementation Summary: {method_ctx}
 Known Dependencies: {reqs}
 Stage Budget: {inputs['stage_rounds']} rounds (for this stage only)
@@ -406,8 +435,10 @@ File sections to include:
 
 The experiment code must be fully self-contained and save all results to files.
 Deliver complete experiment code in a single iteration when possible.
+
+REMINDER: Your experiments must be specifically about: {inputs['question']}
 """
-        response = call_llm(prompt, max_tokens=8192)
+        response = call_llm(prompt, max_tokens=8192, system_prompt=system_prompt)
         try:
             resp = parse_response(response)
         except ValueError as e:
@@ -493,12 +524,16 @@ class PaperWritingNode(Node):
     def exec(self, inputs):
         mode = "EMERGENCY - Brief summary" if inputs["emergency"] else "Full paper"
 
-        prompt = f"""Generate academic paper ({mode}):
+        system_prompt = build_system_prompt(inputs['question'])
 
-{inputs['skill']}
+        prompt = f"""RESEARCH QUESTION (this is your primary focus): {inputs['question']}
 
-Research Question: {inputs['question']}
+Generate an academic paper ({mode}) that is SPECIFICALLY about the research question above. The paper title, abstract, introduction, and all sections must directly reference and focus on the specific subject of the research question.
+
 Expected Output Type: {inputs['expected_output']}
+
+Skill instructions:
+{inputs['skill']}
 
 Available Content:
 - Literature Survey: {summarize_files(inputs['survey_files'])}
@@ -526,8 +561,11 @@ IMPORTANT LaTeX requirements (we compile with Tectonic/XeTeX):
 - Standard packages (amsmath, graphicx, hyperref, booktabs, algorithm, listings, natbib, geometry) are fine
 
 Include all standard sections: Abstract, Introduction, Related Work, Method, Experiments, Conclusion.
+
+REMINDER: The paper must be specifically about: {inputs['question']}
+Do NOT write a generic paper about online communities or computational frameworks. The title and every section must reference the specific subject from the research question.
 """
-        return call_llm(prompt, max_tokens=12000)
+        return call_llm(prompt, max_tokens=12000, system_prompt=system_prompt)
 
     def post(self, shared, prep_res, exec_res):
         try:

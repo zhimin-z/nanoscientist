@@ -21,16 +21,21 @@ def get_openrouter_client():
     )
 
 
-def call_llm(prompt, model=None, max_tokens=4096, temperature=0.7):
-    """Call OpenRouter API with given prompt."""
+def call_llm(prompt, model=None, max_tokens=4096, temperature=0.7, system_prompt=None):
+    """Call OpenRouter API with given prompt and optional system message."""
     client = get_openrouter_client()
     model = model or os.getenv("OPENROUTER_MODEL", "anthropic/claude-haiku-4.5")
 
     print(f"[API] Calling {model}... ", end="", flush=True)
 
+    messages = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    messages.append({"role": "user", "content": prompt})
+
     response = client.chat.completions.create(
         model=model,
-        messages=[{"role": "user", "content": prompt}],
+        messages=messages,
         max_tokens=max_tokens,
         temperature=temperature,
         timeout=120.0
