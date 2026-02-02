@@ -6,7 +6,7 @@ import tempfile
 import shutil
 
 
-def run_experiment(code_dict, mode="local", image="python:3.13", timeout=3600):
+def run_experiment(code_dict, mode="local", image="python:3.13", timeout=3600, output_dir=None):
     """
     Run experiment code in Docker or locally
 
@@ -18,6 +18,7 @@ def run_experiment(code_dict, mode="local", image="python:3.13", timeout=3600):
         mode: "docker" or "local"
         image: Docker image to use (if mode="docker")
         timeout: Execution timeout in seconds
+        output_dir: Parent directory for workspace (defaults to cwd)
 
     Returns:
         dict: {
@@ -27,18 +28,19 @@ def run_experiment(code_dict, mode="local", image="python:3.13", timeout=3600):
         }
     """
     if mode == "docker":
-        return _run_docker(code_dict, image, timeout)
+        return _run_docker(code_dict, image, timeout, output_dir=output_dir)
     else:
-        return _run_local(code_dict, timeout)
+        return _run_local(code_dict, timeout, output_dir=output_dir)
 
 
-def _run_docker(code_dict, image, timeout):
+def _run_docker(code_dict, image, timeout, output_dir=None):
     """Run experiment in Docker container"""
     import docker
 
-    # Create workspace
-    workspace = Path(f"workspace_{code_dict.get('task_id', 'default')}")
-    workspace.mkdir(exist_ok=True)
+    # Create workspace inside output_dir if provided
+    parent = Path(output_dir) if output_dir else Path(".")
+    workspace = parent / f"workspace_{code_dict.get('task_id', 'default')}"
+    workspace.mkdir(parents=True, exist_ok=True)
 
     # Write files
     (workspace / "experiment.py").write_text(code_dict.get("experiment_py", ""))
@@ -81,11 +83,12 @@ def _run_docker(code_dict, image, timeout):
         }
 
 
-def _run_local(code_dict, timeout):
+def _run_local(code_dict, timeout, output_dir=None):
     """Run experiment locally"""
-    # Create workspace
-    workspace = Path(f"workspace_{code_dict.get('task_id', 'default')}")
-    workspace.mkdir(exist_ok=True)
+    # Create workspace inside output_dir if provided
+    parent = Path(output_dir) if output_dir else Path(".")
+    workspace = parent / f"workspace_{code_dict.get('task_id', 'default')}"
+    workspace.mkdir(parents=True, exist_ok=True)
 
     # Write files
     (workspace / "experiment.py").write_text(code_dict.get("experiment_py", ""))

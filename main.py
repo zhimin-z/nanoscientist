@@ -365,6 +365,7 @@ class ExperimentalEvaluationNode(Node):
             "stage_rounds": stage_rounds,
             "iteration": iteration,
             "is_final": iteration + 1 >= MAX_ITERATIONS["evaluation"],
+            "output_dir": shared.get("output_dir"),
         }
 
     def exec(self, inputs):
@@ -430,7 +431,8 @@ Deliver complete experiment code in a single iteration when possible.
                     "task_id": task_id
                 },
                 mode="docker" if use_docker else "local",
-                image=DOCKER_IMAGE
+                image=DOCKER_IMAGE,
+                output_dir=inputs.get("output_dir")
             )
             ctrl["experiment_output"] = exec_result
             print(f"   Exit code: {exec_result['exit_code']}")
