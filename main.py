@@ -588,11 +588,121 @@ Do NOT write a generic paper about online communities or computational framework
             print(f"   Files: {list(files.keys())}")
             print(f"   Mode: {'Emergency' if self.emergency else 'Full paper'}")
 
+            if not files:
+                print(f"   ⚠️  No file sections found in paper response")
+                self._save_raw_response(shared, exec_res)
+
             return "default"
         except Exception as e:
             print(f"⚠️  Paper writing failed: {e}")
+            self._save_raw_response(shared, exec_res)
             shared["paper_files"] = {}
             return "default"
+
+    @staticmethod
+    def _save_raw_response(shared, raw_response):
+        """Save raw LLM response for debugging when paper parsing fails."""
+        output_dir = Path(shared.get("output_dir", "."))
+        debug_file = output_dir / "paper" / "raw_response.txt"
+        debug_file.parent.mkdir(parents=True, exist_ok=True)
+        debug_file.write_text(raw_response or "(empty)")
+        print(f"   Saved raw response to: {debug_file}")
+
+
+def _repair_latex(tex_content):
+    """
+    Auto-repair common LLM-generated LaTeX errors before compilation.
+    Returns repaired content and a list of repairs made.
+    """
+    import re as _re
+    repairs = []
+
+    # 1. Remove inputenc (XeTeX handles UTF-8 natively)
+    new = _re.sub(r'\\usepackage\[.*?\]\{inputenc\}\s*\n?', '', tex_content)
+    if new != tex_content:
+        repairs.append("removed inputenc (XeTeX native UTF-8)")
+        tex_content = new
+
+    # 2. Remove T1 fontenc (not needed with XeTeX)
+    new = _re.sub(r'\\usepackage\[T1\]\{fontenc\}\s*\n?', '', tex_content)
+    if new != tex_content:
+        repairs.append("removed T1 fontenc")
+        tex_content = new
+
+    # 3. Fix tabular column count mismatches
+    # Find each tabular environment: match column spec and all rows up to \end{tabular}
+    tabular_re = _re.compile(
+        r'(\\begin\{tabular\}\{)([^}]+)(\})(.*?)(\\end\{tabular\})',
+        _re.DOTALL
+    )
+    def _fix_tabular(m):
+        prefix, col_spec, brace, body, end = m.groups()
+        # Count columns in spec (count letters: l, c, r, p, m, b — ignore |, @, !, etc.)
+        spec_cols = len(_re.findall(r'[lcrpmb]', col_spec))
+        # Find max columns in any row (count & separators + 1)
+        max_row_cols = 0
+        for row in _re.split(r'\\\\', body):
+            # Skip empty rows or \hline/\midrule etc.
+            stripped = row.strip()
+            if not stripped or stripped.startswith('\\') and '&' not in stripped:
+                continue
+            n_cols = stripped.count('&') + 1
+            max_row_cols = max(max_row_cols, n_cols)
+        if max_row_cols > spec_cols:
+            # Extend column spec: add 'r' columns for the difference
+            extra = max_row_cols - spec_cols
+            # Preserve alignment pattern: use the last column type
+            last_type = _re.findall(r'[lcrpmb]', col_spec)
+            pad_char = last_type[-1] if last_type else 'r'
+            new_spec = col_spec + pad_char * extra
+            repairs.append(f"fixed tabular: {spec_cols} cols -> {max_row_cols} cols")
+            return prefix + new_spec + brace + body + end
+        return m.group(0)
+
+    tex_content = tabular_re.sub(_fix_tabular, tex_content)
+
+    # 4. Fix \includegraphics references (no image files exist in build dir)
+    # Replace with a \rule placeholder
+    def _fix_includegraphics(m):
+        repairs.append(f"replaced \\includegraphics with placeholder")
+        return r'\rule{0.8\textwidth}{3cm}'
+    tex_content = _re.sub(
+        r'\\includegraphics\[.*?\]\{.*?\}',
+        _fix_includegraphics,
+        tex_content
+    )
+    tex_content = _re.sub(
+        r'\\includegraphics\{.*?\}',
+        _fix_includegraphics,
+        tex_content
+    )
+
+    # 5. Fix unclosed environments (count begin/end pairs per environment name)
+    env_re = _re.compile(r'\\(begin|end)\{(\w+)\}')
+    env_counts = {}  # env_name -> (begin_count, end_count)
+    for m in env_re.finditer(tex_content):
+        action, env_name = m.group(1), m.group(2)
+        if env_name == 'document':
+            continue  # don't touch the document environment
+        b, e = env_counts.get(env_name, (0, 0))
+        if action == 'begin':
+            env_counts[env_name] = (b + 1, e)
+        else:
+            env_counts[env_name] = (b, e + 1)
+    unclosed = []
+    for env_name, (b, e) in env_counts.items():
+        for _ in range(b - e):
+            unclosed.append(env_name)
+    if unclosed:
+        close_cmds = '\n'.join(f'\\end{{{env}}}' for env in reversed(unclosed))
+        end_doc = tex_content.rfind(r'\end{document}')
+        if end_doc != -1:
+            tex_content = tex_content[:end_doc] + close_cmds + '\n' + tex_content[end_doc:]
+        else:
+            tex_content += '\n' + close_cmds
+        repairs.append(f"closed {len(unclosed)} unclosed environment(s): {unclosed}")
+
+    return tex_content, repairs
 
 
 def compile_latex(paper_dir):
@@ -607,13 +717,13 @@ def compile_latex(paper_dir):
     if not tex_file.exists():
         return False
 
-    # Pre-process: patch LaTeX for Tectonic/XeTeX compatibility
+    # Pre-process: auto-repair common LLM LaTeX errors
     tex_content = tex_file.read_text()
-    import re as _re
-    # Remove inputenc (XeTeX handles UTF-8 natively)
-    patched = _re.sub(r'\\usepackage\[.*?\]\{inputenc\}\s*\n?', '', tex_content)
-    # Remove T1 fontenc (not needed with XeTeX)
-    patched = _re.sub(r'\\usepackage\[T1\]\{fontenc\}\s*\n?', '', patched)
+    patched, repairs = _repair_latex(tex_content)
+    if repairs:
+        print(f"  [REPAIR] Applied {len(repairs)} LaTeX fix(es):")
+        for r in repairs:
+            print(f"    - {r}")
     if patched != tex_content:
         tex_file.write_text(patched)
 

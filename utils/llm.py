@@ -239,13 +239,39 @@ def parse_response(text):
 
     Returns:
         dict with 'control' (parsed JSON) and 'files' (dict of filename->content)
+
+    If the JSON control block cannot be parsed but ===FILE: sections exist,
+    returns a minimal control block so file content is not lost.
     """
-    control = parse_json(text)
+    # Extract files first — these are always recoverable regardless of JSON issues
     files = {}
     for match in FILE_SECTION_RE.finditer(text):
         filename = match.group(1).strip()
         content = match.group(2).strip()
         files[filename] = content
+
+    try:
+        control = parse_json(text)
+    except ValueError:
+        if files:
+            print("  [PARSE] JSON control block failed but recovered file sections")
+            control = {"status": "done", "rounds_used": 1}
+        else:
+            raise
+
+    # Fallback: if JSON parsed but no ===FILE: sections found, check if the
+    # JSON itself contains file content as string values (common LLM mistake).
+    if not files and isinstance(control, dict):
+        _file_keys = {k: v for k, v in control.items()
+                      if isinstance(v, str) and len(v) > 200 and
+                      any(ext in k for ext in ('.tex', '.py', '.md', '.bib', '.txt'))}
+        if _file_keys:
+            print(f"  [PARSE] Extracted {len(_file_keys)} files embedded in JSON control block")
+            files = _file_keys
+            # Remove file content from control to keep it small
+            for k in _file_keys:
+                control.pop(k, None)
+
     return {"control": control, "files": files}
 
 
