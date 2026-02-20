@@ -1,0 +1,112 @@
+# =============================================================================
+# AgentSkillOS Configuration
+# Priority: CLI arguments > Environment variables (.env) > config.yaml
+# =============================================================================
+
+# =============================================================================
+# Skill Configuration
+# =============================================================================
+
+# Skill group selection
+# (Which skill set to use for search)
+# Options: skill_seeds (~50 curated, recommended), top500, top1000
+skill_group: skill_seeds
+
+# Maximum skills count
+# (Max skills to select during auto search)
+# Recommended: 5-20, more skills = slower but more comprehensive
+max_skills: 15
+
+# Skill deduplication
+# (Enable skill pruning to remove similar skills)
+# true: Reduce redundancy, improve efficiency
+# false: Keep all matched skills
+prune_enabled: true
+
+# =============================================================================
+# Server Configuration
+# =============================================================================
+
+# Web UI port
+# (Port number for the web interface)
+port: 8765
+
+# =============================================================================
+# Tree Building Configuration
+# =============================================================================
+
+# Branching factor
+# (Max child branches per node in capability tree)
+# Recommended: 5-12, affects tree width and depth
+branching_factor: 7
+
+# Parallel build workers
+# (Max threads for building capability tree)
+# Recommended: 2-4x CPU cores
+tree_build_max_workers: 64
+
+# LLM response caching
+# (Cache LLM responses during tree build to avoid duplicate calls)
+# true: Save API costs, speed up repeated builds
+tree_build_caching: true
+
+# LLM call retries
+# (Retry count for network errors or timeouts)
+tree_build_num_retries: 3
+
+# LLM call timeout
+# (Timeout for single LLM call, in seconds)
+tree_build_timeout: 600.0
+
+# Max tree depth
+# (Maximum depth of capability tree)
+# Prevents infinite recursion, recommended: 4-8
+max_depth: 6
+
+# =============================================================================
+# Search Configuration
+# =============================================================================
+
+# Max parallel searches
+# (Number of concurrent search branches)
+search_max_parallel: 5
+
+# LLM temperature
+# (Controls LLM output randomness)
+# Range: 0.0-1.0, lower = more deterministic, higher = more creative
+search_temperature: 0.3
+
+# Search timeout
+# (Timeout for search operations, in seconds)
+search_timeout: 600.0
+
+# Search response caching
+# (Cache LLM responses during search)
+search_caching: true
+
+# =============================================================================
+# Orchestrator Configuration
+# =============================================================================
+
+# Node execution timeout
+# (Max execution time for single skill node, in seconds)
+# 1800 = 30 minutes, suitable for complex tasks
+node_timeout: 1800.0
+
+# Max concurrent nodes
+# (Number of skill nodes executing simultaneously)
+# Note: Too high may trigger API rate limits
+max_concurrent: 6
+
+# =============================================================================
+# Retry Configuration
+# =============================================================================
+
+# Retry base delay
+# (Wait time before first retry, in seconds)
+# Subsequent retries grow exponentially
+retry_base_delay: 1.0
+
+# Max retries
+# (Max retry attempts for temporary errors)
+max_retries: 3

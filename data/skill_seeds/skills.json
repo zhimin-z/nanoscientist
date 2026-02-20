@@ -1,0 +1,472 @@
+{
+  "skills": [
+    {
+      "id": "algorithmic-art",
+      "name": "algorithmic-art",
+      "description": "Creating algorithmic art using p5.js with seeded randomness and interactive parameter exploration. Use this when users request creating art using code, generative art, algorithmic art, flow fields, or particle systems. Create original algorithmic art rather than copying existing artists' work to avoid copyright violations.",
+      "author": "anthropics",
+      "github_url": "https://github.com/anthropics/skills/tree/main/skills/algorithmic-art",
+      "stars": 24530,
+      "is_official": true
+    },
+    {
+      "id": "analyzing-financial-statements",
+      "name": "analyzing-financial-statements",
+      "description": "This skill calculates key financial ratios and metrics from financial statement data for investment analysis",
+      "author": "anthropics",
+      "github_url": "https://github.com/anthropics/claude-cookbooks/tree/main/skills/custom_skills/analyzing-financial-statements",
+      "stars": 28337,
+      "is_official": false
+    },
+    {
+      "id": "api-integration-specialist",
+      "name": "API Integration Specialist",
+      "description": "Expert in integrating third-party APIs with proper authentication, error handling, rate limiting, and retry logic. Use when integrating REST APIs, GraphQL endpoints, webhooks, or external services. Specializes in OAuth flows, API key management, request/response transformation, and building robust API clients.",
+      "author": "",
+      "github_url": "",
+      "stars": 0,
+      "is_official": false
+    },
+    {
+      "id": "auth-implementation-patterns",
+      "name": "auth-implementation-patterns",
+      "description": "Master authentication and authorization patterns including JWT, OAuth2, session management, and RBAC to build secure, scalable access control systems. Use when implementing auth systems, securing APIs, or debugging security issues.",
+      "author": "wshobson",
+      "github_url": "https://github.com/wshobson/agents/tree/main/plugins/developer-essentials/skills/auth-implementation-patterns",
+      "stars": 23399,
+      "is_official": false
+    },
+    {
+      "id": "baoyu-xhs-images",
+      "name": "baoyu-xhs-images",
+      "description": "Xiaohongshu (Little Red Book) infographic series generator with multiple style options. Breaks down content into 1-10 cartoon-style infographics. Use when user asks to create \"小红书图片\", \"XHS images\", or \"RedNote infographics\".",
+      "author": "",
+      "github_url": "",
+      "stars": 0,
+      "is_official": false
+    },
+    {
+      "id": "beads",
+      "name": "beads",
+      "description": ">",
+      "author": "steveyegge",
+      "github_url": "https://github.com/steveyegge/beads/tree/main/skills/beads",
+      "stars": 6144,
+      "is_official": false
+    },
+    {
+      "id": "brand-guidelines",
+      "name": "brand-guidelines",
+      "description": "Applies Anthropic's official brand colors and typography to any sort of artifact that may benefit from having Anthropic's look-and-feel. Use it when brand colors or style guidelines, visual formatting, or company design standards apply.",
+      "author": "anthropics",
+      "github_url": "https://github.com/anthropics/skills/tree/main/skills/brand-guidelines",
+      "stars": 24530,
+      "is_official": true
+    },
+    {
+      "id": "browser-automation",
+      "name": "browser-automation",
+      "description": "Non-testing browser automation - web scraping, form filling, screenshot capture, PDF generation, workflow automation. For TESTING with Playwright, use e2e-playwright skill instead. Activates for web scraping, form automation, screenshot, PDF, headless browser, Puppeteer, Selenium, automation scripts, data extraction.",
+      "author": "browserbase",
+      "github_url": "https://github.com/browserbase/agent-browse/tree/main/.claude/skills/browser-automation",
+      "stars": 323,
+      "is_official": false
+    },
+    {
+      "id": "canvas-design",
+      "name": "canvas-design",
+      "description": "Create beautiful visual art in .png and .pdf documents using design philosophy. You should use this skill when the user asks to create a poster, piece of art, design, or other static piece. Create original visual designs, never copying existing artists' work to avoid copyright violations.",
+      "author": "anthropics",
+      "github_url": "https://github.com/anthropics/skills/tree/main/skills/canvas-design",
+      "stars": 24530,
+      "is_official": true
+    },
+    {
+      "id": "clinical-decision-support",
+      "name": "clinical-decision-support",
+      "description": "Generate professional clinical decision support (CDS) documents for pharmaceutical and clinical research settings, including patient cohort analyses (biomarker-stratified with outcomes) and treatment recommendation reports (evidence-based guidelines with decision algorithms). Supports GRADE evidence grading, statistical analysis (hazard ratios, survival curves, waterfall plots), biomarker integration, and regulatory compliance. Outputs publication-ready LaTeX/PDF format optimized for drug development, clinical research, and evidence synthesis.",
+      "author": "davila7",
+      "github_url": "https://github.com/davila7/claude-code-templates/tree/main/cli-tool/components/skills/scientific/clinical-decision-support",
+      "stars": 13157,
+      "is_official": false
+    },
+    {
+      "id": "code-review-excellence",
+      "name": "code-review-excellence",
+      "description": "Master effective code review practices to provide constructive feedback, catch bugs early, and foster knowledge sharing while maintaining team morale. Use when reviewing pull requests, establishing review standards, or mentoring developers.",
+      "author": "wshobson",
+      "github_url": "https://github.com/wshobson/agents/tree/main/plugins/developer-essentials/skills/code-review-excellence",
+      "stars": 23399,
+      "is_official": false
+    },
+    {
+      "id": "creating-financial-models",
+      "name": "creating-financial-models",
+      "description": "This skill provides an advanced financial modeling suite with DCF analysis, sensitivity testing, Monte Carlo simulations, and scenario planning for investment decisions",
+      "author": "anthropics",
+      "github_url": "https://github.com/anthropics/claude-cookbooks/tree/main/skills/custom_skills/creating-financial-models",
+      "stars": 28337,
+      "is_official": false
+    },
+    {
+      "id": "data-storytelling",
+      "name": "data-storytelling",
+      "description": "Transform data into compelling narratives using visualization, context, and persuasive structure. Use when presenting analytics to stakeholders, creating data reports, or building executive presentations.",
+      "author": "wshobson",
+      "github_url": "https://github.com/wshobson/agents/tree/main/plugins/business-analytics/skills/data-storytelling",
+      "stars": 23399,
+      "is_official": false
+    },
+    {
+      "id": "data-visualization",
+      "name": "data-visualization",
+      "description": "Creates effective data visualizations using various libraries and tools, with focus on clarity and insight communication. Trigger keywords: chart, graph, plot, visualization, dashboard, matplotlib, d3, plotly, visualization.",
+      "author": "NTCoding",
+      "github_url": "https://github.com/NTCoding/claude-skillz/tree/main/data-visualization",
+      "stars": 84,
+      "is_official": false
+    },
+    {
+      "id": "dev-browser",
+      "name": "dev-browser",
+      "description": "Browser automation with persistent page state. Use when users ask to navigate websites, fill forms, take screenshots, extract web data, test web apps, or automate browser workflows. Trigger phrases include \"go to [url]\", \"click on\", \"fill out the form\", \"take a screenshot\", \"scrape\", \"automate\", \"test the website\", \"log into\", or any browser interaction request.",
+      "author": "SawyerHood",
+      "github_url": "https://github.com/SawyerHood/dev-browser/tree/main/skills/dev-browser",
+      "stars": 1450,
+      "is_official": false
+    },
+    {
+      "id": "diagramming",
+      "name": "diagramming",
+      "description": "Create technical diagrams using Mermaid syntax for architecture, sequences, ERDs, flowcharts, and state machines. Use for visualizing system design, data flows, and processes. Triggers: diagram, mermaid, architecture diagram, sequence diagram, flowchart, ERD, entity relationship, state diagram, C4 model, component diagram, visualize, draw.",
+      "author": "joaquimscosta",
+      "github_url": "https://github.com/joaquimscosta/arkhe-claude-plugins/tree/main/doc/skills/mermaid",
+      "stars": 1,
+      "is_official": false
+    },
+    {
+      "id": "doc-coauthoring",
+      "name": "doc-coauthoring",
+      "description": "Guide users through a structured workflow for co-authoring documentation. Use when user wants to write documentation, proposals, technical specs, decision docs, or similar structured content. This workflow helps users efficiently transfer context, refine content through iteration, and verify the doc works for readers. Trigger when user mentions writing docs, creating proposals, drafting specs, or similar documentation tasks.",
+      "author": "anthropics",
+      "github_url": "https://github.com/anthropics/skills/tree/main/skills/doc-coauthoring",
+      "stars": 24530,
+      "is_official": true
+    },
+    {
+      "id": "docx",
+      "name": "docx",
+      "description": "Comprehensive document creation, editing, and analysis with support for tracked changes, comments, formatting preservation, and text extraction. When Claude needs to work with professional documents (.docx files) for: (1) Creating new documents, (2) Modifying or editing content, (3) Working with tracked changes, (4) Adding comments, or any other document tasks",
+      "author": "anthropics",
+      "github_url": "https://github.com/anthropics/skills/tree/main/skills/docx",
+      "stars": 24530,
+      "is_official": true
+    },
+    {
+      "id": "email-composer",
+      "name": "Email Composer",
+      "description": "Draft professional emails for various contexts including business, technical, and customer communication. Use when the user needs help writing emails or composing professional messages.",
+      "author": "",
+      "github_url": "",
+      "stars": 0,
+      "is_official": false
+    },
+    {
+      "id": "employment-contract-templates",
+      "name": "employment-contract-templates",
+      "description": "Create employment contracts, offer letters, and HR policy documents following legal best practices. Use when drafting employment agreements, creating HR policies, or standardizing employment documentation.",
+      "author": "wshobson",
+      "github_url": "https://github.com/wshobson/agents/tree/main/plugins/hr-legal-compliance/skills/employment-contract-templates",
+      "stars": 23399,
+      "is_official": false
+    },
+    {
+      "id": "fabric",
+      "name": "fabric",
+      "description": "Intelligent pattern selection for Fabric CLI. Automatically selects the right pattern from 242+ specialized prompts based on your intent - threat modeling, analysis, summarization, content creation, extraction, and more. USE WHEN processing content, analyzing data, creating summaries, threat modeling, or transforming text.",
+      "author": "danielmiessler",
+      "github_url": "https://github.com/danielmiessler/Personal_AI_Infrastructure/tree/main/.claude/skills/fabric",
+      "stars": 1085,
+      "is_official": false
+    },
+    {
+      "id": "firecrawl-scraper",
+      "name": "firecrawl-scraper",
+      "description": "|",
+      "author": "jackspace",
+      "github_url": "https://github.com/jackspace/ClaudeSkillz/tree/master/skills/firecrawl-scraper",
+      "stars": 0,
+      "is_official": false
+    },
+    {
+      "id": "frontend-design",
+      "name": "frontend-design",
+      "description": "Create distinctive, production-grade frontend interfaces with high design quality. Use this skill when the user asks to build web components, pages, artifacts, posters, or applications (examples include websites, landing pages, dashboards, React components, HTML/CSS layouts, or when styling/beautifying any web UI). Generates creative, polished code and UI design that avoids generic AI aesthetics.",
+      "author": "anthropics",
+      "github_url": "https://github.com/anthropics/claude-code/tree/main/plugins/frontend-design/skills/frontend-design",
+      "stars": 47860,
+      "is_official": true
+    },
+    {
+      "id": "generate-image",
+      "name": "generate-image",
+      "description": "Generate or edit images using AI models (FLUX, Gemini). Use for general-purpose image generation including photos, illustrations, artwork, visual assets, concept art, and any image that isn't a technical diagram or schematic. For flowcharts, circuits, pathways, and technical diagrams, use the scientific-schematics skill instead.",
+      "author": "davila7",
+      "github_url": "https://github.com/davila7/claude-code-templates/tree/main/cli-tool/components/skills/scientific/generate-image",
+      "stars": 13157,
+      "is_official": false
+    },
+    {
+      "id": "internal-comms",
+      "name": "internal-comms",
+      "description": "A set of resources to help me write all kinds of internal communications, using the formats that my company likes to use. Claude should use this skill whenever asked to write some sort of internal communications (status reports, leadership updates, 3P updates, company newsletters, FAQs, incident reports, project updates, etc.).",
+      "author": "anthropics",
+      "github_url": "https://github.com/anthropics/skills/tree/main/skills/internal-comms",
+      "stars": 24530,
+      "is_official": true
+    },
+    {
+      "id": "joke-engineering",
+      "name": "joke-engineering",
+      "description": "Diagnose and improve humor using systems thinking. Use when jokes fall flat, when humor feels forced, when punchlines don't land, or when you want to systematically enhance comedic writing. Treats jokes as engineerable connection systems.",
+      "author": "",
+      "github_url": "",
+      "stars": 0,
+      "is_official": false
+    },
+    {
+      "id": "marketing-demand-acquisition",
+      "name": "marketing-demand-acquisition",
+      "description": "Multi-channel demand generation, paid media optimization, SEO strategy, and partnership programs for Series A+ startups. Includes CAC calculator, channel playbooks, HubSpot integration, and international expansion tactics. Use when planning demand generation campaigns, optimizing paid media, building SEO strategies, establishing partnerships, or when user mentions demand gen, paid ads, LinkedIn ads, Google ads, CAC, acquisition, lead generation, or pipeline generation.",
+      "author": "davila7",
+      "github_url": "https://github.com/davila7/claude-code-templates/tree/main/cli-tool/components/skills/business-marketing/marketing-demand-acquisition",
+      "stars": 13157,
+      "is_official": false
+    },
+    {
+      "id": "markitdown",
+      "name": "markitdown",
+      "description": "Convert files and office documents to Markdown. Supports PDF, DOCX, PPTX, XLSX, images (with OCR), audio (with transcription), HTML, CSV, JSON, XML, ZIP, YouTube URLs, EPubs and more.",
+      "author": "davila7",
+      "github_url": "https://github.com/davila7/claude-code-templates/tree/main/cli-tool/components/skills/scientific/markitdown",
+      "stars": 13157,
+      "is_official": false
+    },
+    {
+      "id": "mcp-builder",
+      "name": "mcp-builder",
+      "description": "Guide for creating high-quality MCP (Model Context Protocol) servers that enable LLMs to interact with external services through well-designed tools. Use when building MCP servers to integrate external APIs or services, whether in Python (FastMCP) or Node/TypeScript (MCP SDK).",
+      "author": "anthropics",
+      "github_url": "https://github.com/anthropics/skills/tree/main/skills/mcp-builder",
+      "stars": 24530,
+      "is_official": true
+    },
+    {
+      "id": "media-processing",
+      "name": "media-processing",
+      "description": "Process multimedia files with FFmpeg (video/audio encoding, conversion, streaming, filtering, hardware acceleration), ImageMagick (image manipulation, format conversion, batch processing, effects, composition), and RMBG (AI-powered background removal). Use when converting media formats, encoding videos with specific codecs (H.264, H.265, VP9), resizing/cropping images, removing backgrounds from images, extracting audio from video, applying filters and effects, optimizing file sizes, creating streaming manifests (HLS/DASH), generating thumbnails, batch processing images, creating composite images, or implementing media processing pipelines. Supports 100+ formats, hardware acceleration (NVENC, QSV), and complex filtergraphs.",
+      "author": "mrgoonie",
+      "github_url": "https://github.com/mrgoonie/claudekit-skills/tree/main/.claude/skills/media-processing",
+      "stars": 713,
+      "is_official": false
+    },
+    {
+      "id": "microsim-generator",
+      "name": "microsim-generator",
+      "description": "Creates interactive educational MicroSims using the best-matched JavaScript library (p5.js, Chart.js, Plotly, Mermaid, vis-network, vis-timeline, Leaflet, Venn.js). Analyzes user requirements to route to the appropriate visualization type and generates complete MicroSim packages with HTML, JavaScript, CSS, documentation, and metadata.",
+      "author": "dmccreary",
+      "github_url": "https://github.com/dmccreary/claude-skills/tree/main/skills/microsim-generator",
+      "stars": 4,
+      "is_official": false
+    },
+    {
+      "id": "openai-api",
+      "name": "openai-api",
+      "description": "|",
+      "author": "jezweb",
+      "github_url": "https://github.com/jezweb/claude-skills/tree/main/skills/openai-api",
+      "stars": 90,
+      "is_official": false
+    },
+    {
+      "id": "pdf",
+      "name": "pdf",
+      "description": "Comprehensive PDF manipulation toolkit for extracting text and tables, creating new PDFs, merging/splitting documents, and handling forms. When Claude needs to fill in a PDF form or programmatically process, generate, or analyze PDF documents at scale.",
+      "author": "anthropics",
+      "github_url": "https://github.com/anthropics/skills/tree/main/skills/pdf",
+      "stars": 24530,
+      "is_official": true
+    },
+    {
+      "id": "performance-optimization",
+      "name": "performance-optimization",
+      "description": "Apply systematic performance optimization techniques when writing or reviewing code. Use when optimizing hot paths, reducing latency, improving throughput, fixing performance regressions, or when the user mentions performance, optimization, speed, latency, throughput, profiling, or benchmarking.",
+      "author": "FarhanAliRaza",
+      "github_url": "https://github.com/FarhanAliRaza/django-bolt/tree/master/.claude/performance-optimization",
+      "stars": 552,
+      "is_official": false
+    },
+    {
+      "id": "postgresql-table-design",
+      "name": "postgresql-table-design",
+      "description": "Design a PostgreSQL-specific schema. Covers best-practices, data types, indexing, constraints, performance patterns, and advanced features",
+      "author": "wshobson",
+      "github_url": "https://github.com/wshobson/agents/tree/main/plugins/database-design/skills/postgresql",
+      "stars": 23399,
+      "is_official": false
+    },
+    {
+      "id": "pptx",
+      "name": "pptx",
+      "description": "Presentation creation, editing, and analysis. When Claude needs to work with presentations (.pptx files) for: (1) Creating new presentations, (2) Modifying or editing content, (3) Working with layouts, (4) Adding comments or speaker notes, or any other presentation tasks",
+      "author": "anthropics",
+      "github_url": "https://github.com/anthropics/skills/tree/main/skills/pptx",
+      "stars": 24530,
+      "is_official": true
+    },
+    {
+      "id": "product-requirements",
+      "name": "product-requirements",
+      "description": "Interactive Product Owner skill for requirements gathering, analysis, and PRD generation. Triggers when users request product requirements, feature specification, PRD creation, or need help understanding and documenting project requirements. Uses quality scoring and iterative dialogue to ensure comprehensive requirements before generating professional PRD documents.",
+      "author": "cexll",
+      "github_url": "https://github.com/cexll/myclaude/tree/master/skills/product-requirements",
+      "stars": 1366,
+      "is_official": false
+    },
+    {
+      "id": "prompt-engineering-patterns",
+      "name": "prompt-engineering-patterns",
+      "description": "Master advanced prompt engineering techniques to maximize LLM performance, reliability, and controllability in production. Use when optimizing prompts, improving LLM outputs, or designing production prompt templates.",
+      "author": "wshobson",
+      "github_url": "https://github.com/wshobson/agents/tree/main/plugins/llm-application-dev/skills/prompt-engineering-patterns",
+      "stars": 23399,
+      "is_official": false
+    },
+    {
+      "id": "research-grants",
+      "name": "research-grants",
+      "description": "Write competitive research proposals for NSF, NIH, DOE, and DARPA. Agency-specific formatting, review criteria, budget preparation, broader impacts, significance statements, innovation narratives, and compliance with submission requirements.",
+      "author": "davila7",
+      "github_url": "https://github.com/davila7/claude-code-templates/tree/main/cli-tool/components/skills/scientific/research-grants",
+      "stars": 13157,
+      "is_official": false
+    },
+    {
+      "id": "resolve-conflicts",
+      "name": "resolve-conflicts",
+      "description": "Use this skill immediately when the user mentions merge conflicts that need to be resolved. Do not attempt to resolve conflicts directly - invoke this skill first. This skill specializes in providing a structured framework for merging imports, tests, lock files (regeneration), configuration files, and handling deleted-but-modified files with backup and analysis.",
+      "author": "antinomyhq",
+      "github_url": "https://github.com/antinomyhq/forge/tree/main/.forge/skills/resolve-conflicts",
+      "stars": 4585,
+      "is_official": false
+    },
+    {
+      "id": "skill-creator",
+      "name": "skill-creator",
+      "description": "Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends Claude's capabilities with specialized knowledge, workflows, or tool integrations.",
+      "author": "openai",
+      "github_url": "https://github.com/openai/codex/tree/main/codex-rs/core/src/skills/assets/samples/skill-creator",
+      "stars": 54469,
+      "is_official": true
+    },
+    {
+      "id": "slack-gif-creator",
+      "name": "slack-gif-creator",
+      "description": "Knowledge and utilities for creating animated GIFs optimized for Slack. Provides constraints, validation tools, and animation concepts. Use when users request animated GIFs for Slack like \"make me a GIF of X doing Y for Slack.\"",
+      "author": "anthropics",
+      "github_url": "https://github.com/anthropics/skills/tree/main/skills/slack-gif-creator",
+      "stars": 24530,
+      "is_official": true
+    },
+    {
+      "id": "social-media-generator",
+      "name": "social-media-generator",
+      "description": "This skill should be used when the user requests social media content creation for Twitter, Instagram, LinkedIn, or Facebook. It generates platform-optimized posts and saves them in an organized folder structure with meaningful filenames based on event details.",
+      "author": "tipmaster",
+      "github_url": "https://github.com/tipmaster/claude-config/tree/master/skills/social-media-generator",
+      "stars": 1,
+      "is_official": false
+    },
+    {
+      "id": "sql-optimization-patterns",
+      "name": "sql-optimization-patterns",
+      "description": "Master SQL query optimization, indexing strategies, and EXPLAIN analysis to dramatically improve database performance and eliminate slow queries. Use when debugging slow queries, designing database schemas, or optimizing application performance.",
+      "author": "wshobson",
+      "github_url": "https://github.com/wshobson/agents/tree/main/plugins/developer-essentials/skills/sql-optimization-patterns",
+      "stars": 23399,
+      "is_official": false
+    },
+    {
+      "id": "statistical-analysis",
+      "name": "statistical-analysis",
+      "description": "Statistical analysis toolkit. Hypothesis tests (t-test, ANOVA, chi-square), regression, correlation, Bayesian stats, power analysis, assumption checks, APA reporting, for academic research.",
+      "author": "davila7",
+      "github_url": "https://github.com/davila7/claude-code-templates/tree/main/cli-tool/components/skills/scientific/statistical-analysis",
+      "stars": 13157,
+      "is_official": false
+    },
+    {
+      "id": "theme-factory",
+      "name": "theme-factory",
+      "description": "Toolkit for styling artifacts with a theme. These artifacts can be slides, docs, reportings, HTML landing pages, etc. There are 10 pre-set themes with colors/fonts that you can apply to any artifact that has been creating, or can generate a new theme on-the-fly.",
+      "author": "anthropics",
+      "github_url": "https://github.com/anthropics/skills/tree/main/skills/theme-factory",
+      "stars": 24530,
+      "is_official": true
+    },
+    {
+      "id": "tooluniverse",
+      "name": "tooluniverse",
+      "description": "Use this skill when working with scientific research tools and workflows across bioinformatics, cheminformatics, genomics, structural biology, proteomics, and drug discovery. This skill provides access to 600+ scientific tools including machine learning models, datasets, APIs, and analysis packages. Use when searching for scientific tools, executing computational biology workflows, composing multi-step research pipelines, accessing databases like OpenTargets/PubChem/UniProt/PDB/ChEMBL, performing tool discovery for research tasks, or integrating scientific computational resources into LLM workflows.",
+      "author": "jimmc414",
+      "github_url": "https://github.com/jimmc414/Kosmos/tree/master/kosmos-claude-scientific-skills/scientific-skills/tooluniverse",
+      "stars": 304,
+      "is_official": false
+    },
+    {
+      "id": "transformers",
+      "name": "transformers",
+      "description": "Work with state-of-the-art machine learning models for NLP, computer vision, audio, and multimodal tasks using HuggingFace Transformers. This skill should be used when fine-tuning pre-trained models, performing inference with pipelines, generating text, training sequence models, or working with BERT, GPT, T5, ViT, and other transformer architectures. Covers model loading, tokenization, training with Trainer API, text generation strategies, and task-specific patterns for classification, NER, QA, summarization, translation, and image tasks. (plugin:scientific-packages@claude-scientific-skills)",
+      "author": "davila7",
+      "github_url": "https://github.com/davila7/claude-code-templates/tree/main/cli-tool/components/skills/scientific/transformers",
+      "stars": 13157,
+      "is_official": false
+    },
+    {
+      "id": "treatment-plans",
+      "name": "treatment-plans",
+      "description": "Generate concise (3-4 page), focused medical treatment plans in LaTeX/PDF format for all clinical specialties. Supports general medical treatment, rehabilitation therapy, mental health care, chronic disease management, perioperative care, and pain management. Includes SMART goal frameworks, evidence-based interventions with minimal text citations, regulatory compliance (HIPAA), and professional formatting. Prioritizes brevity and clinical actionability.",
+      "author": "davila7",
+      "github_url": "https://github.com/davila7/claude-code-templates/tree/main/cli-tool/components/skills/scientific/treatment-plans",
+      "stars": 13157,
+      "is_official": false
+    },
+    {
+      "id": "web-artifacts-builder",
+      "name": "web-artifacts-builder",
+      "description": "Suite of tools for creating elaborate, multi-component claude.ai HTML artifacts using modern frontend web technologies (React, Tailwind CSS, shadcn/ui). Use for complex artifacts requiring state management, routing, or shadcn/ui components - not for simple single-file HTML/JSX artifacts.",
+      "author": "anthropics",
+      "github_url": "https://github.com/anthropics/skills/tree/main/skills/web-artifacts-builder",
+      "stars": 24530,
+      "is_official": true
+    },
+    {
+      "id": "webapp-testing",
+      "name": "webapp-testing",
+      "description": "Toolkit for interacting with and testing local web applications using Playwright. Supports verifying frontend functionality, debugging UI behavior, capturing browser screenshots, and viewing browser logs.",
+      "author": "anthropics",
+      "github_url": "https://github.com/anthropics/skills/tree/main/skills/webapp-testing",
+      "stars": 24530,
+      "is_official": true
+    },
+    {
+      "id": "xlsx",
+      "name": "xlsx",
+      "description": "Comprehensive spreadsheet creation, editing, and analysis with support for formulas, formatting, data analysis, and visualization. When Claude needs to work with spreadsheets (.xlsx, .xlsm, .csv, .tsv, etc) for: (1) Creating new spreadsheets with formulas and formatting, (2) Reading or analyzing data, (3) Modify existing spreadsheets while preserving formulas, (4) Data analysis and visualization in spreadsheets, or (5) Recalculating formulas",
+      "author": "anthropics",
+      "github_url": "https://github.com/anthropics/skills/tree/main/skills/xlsx",
+      "stars": 24530,
+      "is_official": true
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+"""Capability tree data directory."""

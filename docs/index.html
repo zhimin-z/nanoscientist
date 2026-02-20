@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="en" style="scroll-behavior: smooth;">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgentSkillOS - AI Agent Skill Orchestration Framework</title>
+    <meta name="description" content="AgentSkillOS - A unified framework for skill selection and orchestration in AI agent skill ecosystems">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            /* Light mode (default) */
+            --bg-primary: #ffffff;
+            --bg-secondary: #f6f8fa;
+            --bg-card: rgba(255, 255, 255, 0.9);
+            --text-primary: #1f2328;
+            --text-secondary: #656d76;
+            --accent-blue: #0969da;
+            --accent-purple: #8250df;
+            --accent-green: #1a7f37;
+            --gradient: linear-gradient(135deg, #0969da 0%, #8250df 100%);
+            --glow-blue: rgba(9, 105, 218, 0.15);
+            --glow-purple: rgba(130, 80, 223, 0.15);
+            --border-color: rgba(0, 0, 0, 0.1);
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-card: rgba(22, 27, 34, 0.8);
+            --text-primary: #e6edf3;
+            --text-secondary: #8b949e;
+            --accent-blue: #58a6ff;
+            --accent-purple: #a371f7;
+            --accent-green: #3fb950;
+            --gradient: linear-gradient(135deg, #58a6ff 0%, #a371f7 100%);
+            --glow-blue: rgba(88, 166, 255, 0.4);
+            --glow-purple: rgba(163, 113, 247, 0.4);
+            --border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* Background gradient effect */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background:
+                radial-gradient(ellipse at 20% 20%, var(--glow-blue) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, var(--glow-purple) 0%, transparent 50%);
+            opacity: 0.3;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 32px;
+        }
+        .container.wide {
+            max-width: 1600px;
+        }
+
+        /* Header Controls */
+        .header-controls {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            display: flex;
+            gap: 8px;
+        }
+
+        /* Theme Toggle */
+        .theme-toggle {
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 8px 12px;
+            cursor: pointer;
+            color: var(--text-primary);
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+
+        .theme-toggle:hover {
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 20px var(--glow-blue);
+        }
+
+        /* Language Toggle */
+        .lang-toggle {
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 8px 16px;
+            cursor: pointer;
+            color: var(--text-primary);
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .lang-toggle:hover {
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 20px var(--glow-blue);
+        }
+
+        .lang-toggle .active {
+            background: var(--gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* Hero Section */
+        .hero {
+            min-height: auto;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 40px 24px 24px;
+        }
+
+        .hero h1 {
+            font-size: clamp(2.2rem, 5vw, 3.2rem);
+            font-weight: 700;
+            margin-bottom: 12px;
+            background: var(--gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero-logo {
+            display: block;
+            margin: 0 auto 20px;
+            height: 140px;
+        }
+
+        .hero-highlight {
+            display: inline-block;
+            background: linear-gradient(135deg, var(--glow-blue) 0%, var(--glow-purple) 100%);
+            border: 1px solid var(--accent-blue);
+            border-radius: 8px;
+            padding: 10px 20px;
+            margin-bottom: 20px;
+            font-size: 0.95rem;
+            color: var(--text-primary);
+            font-weight: 500;
+            opacity: 0.9;
+        }
+
+        .hero-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+
+        /* Figure with caption */
+        .figure {
+            text-align: center;
+        }
+        .figure-caption {
+            margin-top: 12px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+            line-height: 1.5;
+        }
+
+        .hero-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+            background: var(--gradient);
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.3s ease;
+        }
+
+        .hero-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px var(--glow-purple);
+        }
+
+        .hero-btn svg {
+            width: 18px;
+            height: 18px;
+            fill: currentColor;
+        }
+
+        .hero-btn-outline {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+            background: transparent;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.3s ease;
+        }
+
+        .hero-btn-outline:hover {
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 20px var(--glow-blue);
+        }
+
+        .hero-btn-outline svg {
+            width: 18px;
+            height: 18px;
+            fill: currentColor;
+        }
+
+        .hero-image {
+            max-width: 100%;
+            width: 900px;
+            border-radius: 16px;
+            border: 1px solid var(--border-color);
+            box-shadow:
+                0 0 60px var(--glow-blue),
+                0 0 120px var(--glow-purple);
+        }
+
+        /* Section Styles */
+        section {
+            padding: 36px 0;
+        }
+
+        .section-title {
+            font-size: clamp(1.4rem, 4vw, 2rem);
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 10px;
+            background: var(--gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .section-subtitle {
+            text-align: center;
+            color: var(--text-secondary);
+            margin-bottom: 24px;
+            font-size: 0.95rem;
+        }
+
+        /* Examples Section */
+        .examples-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+        @media (max-width: 1000px) {
+            .examples-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .example-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+            transition: all 0.4s ease;
+            position: relative;
+            cursor: pointer;
+            text-decoration: none;
+            display: block;
+        }
+
+        .example-card::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 16px;
+            padding: 1px;
+            background: var(--gradient);
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+
+        .example-card:hover::before {
+            opacity: 1;
+        }
+
+        .example-card:hover {
+            transform: translateY(-8px);
+            box-shadow:
+                0 20px 40px rgba(0, 0, 0, 0.4),
+                0 0 40px var(--glow-blue);
+        }
+
+        .example-image-container {
+            position: relative;
+            width: 100%;
+            padding-top: 56%;
+            overflow: hidden;
+            background: var(--bg-secondary);
+        }
+
+        .example-image-container img,
+        .example-image-container .gif-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .gif-container {
+            display: flex;
+            gap: 4px;
+        }
+
+        .gif-container img {
+            position: relative;
+            width: 50%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .example-content {
+            padding: 20px;
+        }
+
+        .example-number {
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--accent-blue);
+            background: rgba(88, 166, 255, 0.1);
+            padding: 3px 10px;
+            border-radius: 20px;
+            margin-bottom: 8px;
+        }
+
+        .example-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+
+        .example-description {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        .example-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 12px;
+            font-size: 13px;
+            color: var(--accent-blue);
+            font-weight: 500;
+        }
+
+        .example-link svg {
+            width: 16px;
+            height: 16px;
+            fill: currentColor;
+            transition: transform 0.2s;
+        }
+
+        .example-card:hover .example-link svg {
+            transform: translateX(4px);
+        }
+
+        /* Highlights Section */
+        .contributions-section {
+            background: var(--bg-secondary);
+        }
+
+        .contributions-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        @media (max-width: 1024px) {
+            .contributions-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        .contribution-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            padding: 20px 16px;
+            text-align: center;
+            transition: all 0.4s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .contribution-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: var(--gradient);
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+
+        .contribution-card:hover::before {
+            opacity: 1;
+        }
+
+        .contribution-card:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3);
+            border-color: rgba(88, 166, 255, 0.3);
+        }
+
+        .contribution-icon {
+            font-size: 1.8rem;
+            margin-bottom: 10px;
+            display: block;
+        }
+
+        .contribution-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .contribution-desc {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        @media (max-width: 768px) {
+            .contributions-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Why Skill Tree Section */
+        .why-skill-tree-section {
+            background: var(--bg-primary);
+        }
+
+        .comparison-figure {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .comparison-caption {
+            text-align: left;
+        }
+
+        .comparison-caption p {
+            margin: 6px 0;
+        }
+
+        .comparison-caption strong {
+            color: var(--accent-purple);
+        }
+
+        /* Side Navigation */
+        .side-nav {
+            position: fixed;
+            right: 24px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px;
+            z-index: 100;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s, visibility 0.3s;
+        }
+
+        .side-nav.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .side-nav-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+            letter-spacing: 0.5px;
+        }
+
+        .side-nav-item {
+            display: block;
+            padding: 8px 12px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            border-radius: 6px;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .side-nav-item:hover,
+        .side-nav-item.active {
+            background: rgba(88, 166, 255, 0.1);
+            color: var(--accent-blue);
+        }
+
+        @media (max-width: 1024px) {
+            .side-nav {
+                display: none;
+            }
+        }
+
+        /* Footer */
+        footer {
+            padding: 32px 24px;
+            text-align: center;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .github-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 14px 32px;
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+            background: var(--gradient);
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.3s ease;
+        }
+
+        .github-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px var(--glow-purple);
+        }
+
+        .github-btn svg {
+            width: 24px;
+            height: 24px;
+            fill: currentColor;
+        }
+
+        .footer-text {
+            margin-top: 16px;
+            color: var(--text-secondary);
+            font-size: 13px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero {
+                padding: 60px 16px 24px;
+            }
+
+            .header-controls {
+                top: 12px;
+                right: 12px;
+            }
+
+            .lang-toggle {
+                padding: 6px 12px;
+                font-size: 12px;
+            }
+
+            .theme-toggle {
+                padding: 6px 10px;
+                font-size: 14px;
+            }
+
+            section {
+                padding: 32px 0;
+            }
+
+            .hero-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .container {
+                padding: 0 16px;
+            }
+        }
+
+        /* Scroll animation */
+        .fade-in {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: opacity 0.6s ease, transform 0.6s ease;
+        }
+
+        .fade-in.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    </style>
+</head>
+<body>
+    <!-- Header Controls -->
+    <div class="header-controls">
+        <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
+            <span id="theme-icon">🌙</span>
+        </button>
+        <button class="lang-toggle" onclick="toggleLang()">
+            <span id="lang-en" class="active">EN</span> | <span id="lang-zh">中</span>
+        </button>
+    </div>
+
+    <!-- Side Navigation -->
+    <nav class="side-nav" id="sideNav">
+        <div class="side-nav-title">Examples</div>
+        <a href="#example-1" class="side-nav-item">01 Bug Diagnosis</a>
+        <a href="#example-2" class="side-nav-item">02 UI Design</a>
+        <a href="#example-3" class="side-nav-item">03 Paper Promo</a>
+        <a href="#example-4" class="side-nav-item">04 Meme Video</a>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <img src="./assets/logo.png" alt="AgentSkillOS" class="hero-logo">
+            <p class="hero-highlight i18n" data-en="Build your agent from 90,000+ skills via skill RETRIEVAL & ORCHESTRATION" data-zh="通过技能检索与编排，从 90,000+ 技能中构建Agent">Build your agent from 90,000+ skills via skill RETRIEVAL & ORCHESTRATION</p>
+
+            <div class="hero-buttons">
+                <a href="https://github.com/ynulihao/AgentSkillOS" target="_blank" rel="noopener" class="hero-btn">
+                    <svg viewBox="0 0 16 16" aria-hidden="true">
+                        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+                    </svg>
+                    <span class="i18n" data-en="GitHub" data-zh="GitHub">GitHub</span>
+                </a>
+                <a href="https://drive.google.com/file/d/1IHbnrv9aSnsnMGYHzVTZJ8EtQl0dJfUL/view?usp=sharing" target="_blank" rel="noopener" class="hero-btn-outline">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 16l-6-6h4V4h4v6h4l-6 6zm-6 2v2h12v-2H6z"/>
+                    </svg>
+                    <span class="i18n" data-en="Google Drive" data-zh="Google Drive">Google Drive</span>
+                </a>
+                <a href="https://pan.baidu.com/s/1Sg_a33PjLbYrBZj4hmsb-w?pwd=cei9" target="_blank" rel="noopener" class="hero-btn-outline" title="Extraction code: cei9">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 16l-6-6h4V4h4v6h4l-6 6zm-6 2v2h12v-2H6z"/>
+                    </svg>
+                    <span class="i18n" data-en="Baidu Pan (cei9)" data-zh="百度网盘 (cei9)">Baidu Pan (cei9)</span>
+                </a>
+            </div>
+            <div class="figure">
+                <a href="https://www.youtube.com/watch?v=trh7doIZ3aA" target="_blank" rel="noopener">
+                    <img src="./assets/cover.png" alt="Watch the video" class="hero-image">
+                </a>
+            </div>
+            <div class="figure" style="margin-top: 32px;">
+                <img src="./assets/workflow_en.png" alt="Skill Workflow Overview" class="hero-image">
+            </div>
+        </div>
+    </section>
+
+    <!-- Highlights Section -->
+    <section class="contributions-section">
+        <div class="container">
+            <h2 class="section-title i18n" data-en="Highlights" data-zh="亮点">Highlights</h2>
+            <p class="section-subtitle i18n" data-en="Six core capabilities for intelligent skill management" data-zh="智能技能管理的六大核心能力">Six core capabilities for intelligent skill management</p>
+
+            <div class="contributions-grid">
+                <div class="contribution-card fade-in">
+                    <span class="contribution-icon">🔍</span>
+                    <h3 class="contribution-title i18n" data-en="Skill Search & Discovery" data-zh="技能搜索与发现">Skill Search & Discovery</h3>
+                    <p class="contribution-desc i18n" data-en="Creative skill discovery with hierarchical skill tree for semantic navigation" data-zh="基于层级技能树的创意技能发现，实现语义导航">Creative skill discovery with hierarchical skill tree for semantic navigation</p>
+                </div>
+
+                <div class="contribution-card fade-in">
+                    <span class="contribution-icon">🔗</span>
+                    <h3 class="contribution-title i18n" data-en="Skill Orchestration" data-zh="技能编排">Skill Orchestration</h3>
+                    <p class="contribution-desc i18n" data-en="DAG-based workflow with automatic dependency management and parallel execution" data-zh="基于 DAG 的工作流，自动依赖管理与并行执行">DAG-based workflow with automatic dependency management and parallel execution</p>
+                </div>
+
+                <div class="contribution-card fade-in">
+                    <span class="contribution-icon">🖥️</span>
+                    <h3 class="contribution-title i18n" data-en="GUI (Human-in-the-Loop)" data-zh="GUI（人机协作）">GUI (Human-in-the-Loop)</h3>
+                    <p class="contribution-desc i18n" data-en="Built-in GUI for controllable, auditable workflows with human oversight" data-zh="内置 GUI 界面，支持可控、可审计的人机协作工作流">Built-in GUI for controllable, auditable workflows with human oversight</p>
+                </div>
+
+                <div class="contribution-card fade-in">
+                    <span class="contribution-icon">⭐</span>
+                    <h3 class="contribution-title i18n" data-en="High-Quality Skill Pool" data-zh="高质量技能池">High-Quality Skill Pool</h3>
+                    <p class="contribution-desc i18n" data-en="Curated skills based on GitHub stars and downloads, ensuring reliability" data-zh="基于 GitHub 星标和下载量筛选的技能，确保可靠性">Curated skills based on GitHub stars and downloads, ensuring reliability</p>
+                </div>
+
+                <div class="contribution-card fade-in">
+                    <span class="contribution-icon">📊</span>
+                    <h3 class="contribution-title i18n" data-en="Observability & Debugging" data-zh="可观测性与调试">Observability & Debugging</h3>
+                    <p class="contribution-desc i18n" data-en="Trace logs and metadata for debugging and monitoring skill execution" data-zh="追踪日志和元数据，用于调试和监控技能执行">Trace logs and metadata for debugging and monitoring skill execution</p>
+                </div>
+
+                <div class="contribution-card fade-in">
+                    <span class="contribution-icon">🧩</span>
+                    <h3 class="contribution-title i18n" data-en="Extensible Skill Registry" data-zh="可扩展技能注册">Extensible Skill Registry</h3>
+                    <p class="contribution-desc i18n" data-en="Flexible registry for custom skills with easy integration and management" data-zh="灵活的自定义技能注册，便于集成和管理">Flexible registry for custom skills with easy integration and management</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Architecture Section -->
+    <section class="architecture-section" id="architecture">
+        <div class="container">
+            <h2 class="section-title i18n" data-en="Architecture" data-zh="架构">Architecture</h2>
+            <p class="section-subtitle i18n"
+               data-en="Three key components for intelligent skill management"
+               data-zh="智能技能管理的三大核心组件">
+               Three key components for intelligent skill management
+            </p>
+
+            <figure class="figure comparison-figure fade-in">
+                <img src="./assets/framework.png" alt="AgentSkillOS Framework" class="hero-image">
+                <figcaption class="figure-caption i18n i18n-html"
+                    data-en="&lt;strong&gt;Skill tree construction&lt;/strong&gt;: Organizes 90,000+ skills into a capability tree for efficient and creative skill discovery. &lt;strong&gt;Skill retrieval&lt;/strong&gt;: Automatically selects task-relevant skills. &lt;strong&gt;Skill orchestration&lt;/strong&gt;: Composes skills into a DAG-based workflow."
+                    data-zh="&lt;strong&gt;技能树构建&lt;/strong&gt;：将 90,000+ 技能组织为能力树，实现高效、创意的技能发现。&lt;strong&gt;技能检索&lt;/strong&gt;：自动选择与任务相关的技能。&lt;strong&gt;技能编排&lt;/strong&gt;：将技能组合为 DAG 工作流。">
+                    <strong>Skill tree construction</strong>: Organizes 90,000+ skills into a capability tree for efficient and creative skill discovery. <strong>Skill retrieval</strong>: Automatically selects task-relevant skills. <strong>Skill orchestration</strong>: Composes skills into a DAG-based workflow.
+                </figcaption>
+            </figure>
+        </div>
+    </section>
+
+    <!-- Why Skill Tree Section -->
+    <section class="why-skill-tree-section" id="why-skill-tree">
+        <div class="container">
+            <h2 class="section-title i18n" data-en="Why Skill Tree?" data-zh="为什么用技能树？">Why Skill Tree?</h2>
+            <p class="section-subtitle i18n" data-en="Comparing semantic retrieval vs. our LLM + Skill Tree approach" data-zh="语义检索与 LLM + 技能树方法对比">Comparing semantic retrieval vs. our LLM + Skill Tree approach</p>
+
+            <figure class="figure comparison-figure fade-in">
+                <img src="./assets/skill_retrieval_academic_comparison.png" alt="Skill Retrieval Comparison" class="hero-image">
+                <figcaption class="figure-caption comparison-caption">
+                    <p class="i18n" data-en="▲ Left: Pure semantic retrieval prioritizes textual similarity, often missing skills that look unrelated in embedding space but are crucial for solving the task—leading to narrow, myopic skill usage." data-zh="▲ 左：纯语义检索优先考虑文本相似性，往往忽略嵌入空间中看似无关但对解决任务至关重要的技能——导致技能使用狭隘、短视。">▲ Left: Pure semantic retrieval prioritizes textual similarity, often missing skills that look unrelated in embedding space but are crucial for solving the task—leading to narrow, myopic skill usage.</p>
+                    <p class="i18n i18n-html" data-en="▲ Right: Our LLM + Skill Tree navigates the capability hierarchy to surface non-obvious but functionally relevant skills, enabling broader, more <strong>creative</strong>, and more effective skill composition." data-zh="▲ 右：我们的 LLM + 技能树通过能力层级导航，发现不明显但功能相关的技能，实现更广泛、更具<strong>创造力</strong>、更有效的技能组合。">▲ Right: Our LLM + Skill Tree navigates the capability hierarchy to surface non-obvious but functionally relevant skills, enabling broader, more <strong>creative</strong>, and more effective skill composition.</p>
+                </figcaption>
+            </figure>
+        </div>
+    </section>
+
+    <!-- Examples Section -->
+    <section class="examples-section" id="examples">
+        <div class="container">
+            <h2 class="section-title i18n" data-en="Examples" data-zh="示例">Examples</h2>
+            <p class="section-subtitle i18n" data-en="Click to see detailed workflow and results" data-zh="点击查看详细流程和结果">Click to see detailed workflow and results</p>
+
+            <div class="examples-grid">
+                <!-- Example 1: Bug Diagnosis -->
+                <a class="example-card fade-in" id="example-1" href="example-bug.html">
+                    <div class="example-image-container">
+                        <img src="./assets/case1_bug_report/before_after_merged.png" alt="Bug Diagnosis Report">
+                    </div>
+                    <div class="example-content">
+                        <span class="example-number">EXAMPLE 01</span>
+                        <h3 class="example-title i18n" data-en="Bug Diagnosis Report" data-zh="Bug 诊断报告">Bug Diagnosis Report</h3>
+                        <p class="example-description i18n" data-en="Auto-locate frontend bugs and generate visual diagnosis reports" data-zh="自动定位前端Bug，生成可视化诊断报告">Auto-locate frontend bugs and generate visual diagnosis reports</p>
+                        <span class="example-link">
+                            <span class="i18n" data-en="View Details" data-zh="查看详情">View Details</span>
+                            <svg viewBox="0 0 24 24"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/></svg>
+                        </span>
+                    </div>
+                </a>
+
+                <!-- Example 2: UI Design Research -->
+                <a class="example-card fade-in" id="example-2" href="example-ui.html">
+                    <div class="example-image-container">
+                        <img src="./assets/case2_ui_design/fusion_design_merged.png" alt="UI Design Research">
+                    </div>
+                    <div class="example-content">
+                        <span class="example-number">EXAMPLE 02</span>
+                        <h3 class="example-title i18n" data-en="UI Design Research" data-zh="UI 设计研究">UI Design Research</h3>
+                        <p class="example-description i18n" data-en="Research Notion/Confluence design patterns, generate concept designs" data-zh="研究 Notion/Confluence 设计语言，生成设计概念图">Research Notion/Confluence design patterns, generate concept designs</p>
+                        <span class="example-link">
+                            <span class="i18n" data-en="View Details" data-zh="查看详情">View Details</span>
+                            <svg viewBox="0 0 24 24"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/></svg>
+                        </span>
+                    </div>
+                </a>
+
+                <!-- Example 3: Paper Promotion -->
+                <a class="example-card fade-in" id="example-3" href="example-paper.html">
+                    <div class="example-image-container">
+                        <img src="./assets/case3_paper_promotion/avengers_slides_merged.png" alt="Paper Promotion">
+                    </div>
+                    <div class="example-content">
+                        <span class="example-number">EXAMPLE 03</span>
+                        <h3 class="example-title i18n" data-en="Paper Promotion" data-zh="论文推广">Paper Promotion</h3>
+                        <p class="example-description i18n" data-en="Academic paper → Multi-platform social media promotional materials" data-zh="学术论文 → 多平台社交媒体推广物料">Academic paper → Multi-platform social media promotional materials</p>
+                        <span class="example-link">
+                            <span class="i18n" data-en="View Details" data-zh="查看详情">View Details</span>
+                            <svg viewBox="0 0 24 24"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/></svg>
+                        </span>
+                    </div>
+                </a>
+
+                <!-- Example 4: Meme Video -->
+                <a class="example-card fade-in" id="example-4" href="example-video.html">
+                    <div class="example-image-container">
+                        <div class="gif-container">
+                            <img src="./assets/case4_cat_meme/video1.gif" alt="Meme Video 1">
+                            <img src="./assets/case4_cat_meme/video2.gif" alt="Meme Video 2">
+                        </div>
+                    </div>
+                    <div class="example-content">
+                        <span class="example-number">EXAMPLE 04</span>
+                        <h3 class="example-title i18n" data-en="Meme Video" data-zh="病毒式短视频">Meme Video</h3>
+                        <p class="example-description i18n" data-en="Green screen video → Viral short video with subtitles & voiceover" data-zh="绿幕视频 → 添加字幕/配音的病毒式短视频">Green screen video → Viral short video with subtitles & voiceover</p>
+                        <span class="example-link">
+                            <span class="i18n" data-en="View Details" data-zh="查看详情">View Details</span>
+                            <svg viewBox="0 0 24 24"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/></svg>
+                        </span>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <a href="https://github.com/ynulihao/AgentSkillOS" target="_blank" rel="noopener" class="github-btn">
+                <svg viewBox="0 0 16 16" aria-hidden="true">
+                    <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+                </svg>
+                <span class="i18n" data-en="Star on GitHub" data-zh="GitHub 收藏">Star on GitHub</span>
+            </a>
+            <p class="footer-text i18n" data-en="Built with Claude Code" data-zh="由 Claude Code 构建">Built with Claude Code</p>
+        </div>
+    </footer>
+
+    <script>
+        // Theme toggle
+        let theme = localStorage.getItem('theme') || 'light';
+
+        function applyTheme() {
+            document.documentElement.setAttribute('data-theme', theme);
+            document.getElementById('theme-icon').textContent = theme === 'dark' ? '☀️' : '🌙';
+        }
+
+        function toggleTheme() {
+            theme = theme === 'dark' ? 'light' : 'dark';
+            localStorage.setItem('theme', theme);
+            applyTheme();
+        }
+
+        // Apply saved theme on load
+        applyTheme();
+
+        // Language toggle
+        let lang = localStorage.getItem('lang') || 'en';
+
+        function applyLang() {
+            document.querySelectorAll('.i18n').forEach(el => {
+                if (el.classList.contains('i18n-html')) {
+                    el.innerHTML = el.dataset[lang];
+                } else {
+                    el.textContent = el.dataset[lang];
+                }
+            });
+            document.getElementById('lang-en').classList.toggle('active', lang === 'en');
+            document.getElementById('lang-zh').classList.toggle('active', lang === 'zh');
+            document.documentElement.lang = lang === 'en' ? 'en' : 'zh-CN';
+        }
+
+        function toggleLang() {
+            lang = lang === 'en' ? 'zh' : 'en';
+            localStorage.setItem('lang', lang);
+            applyLang();
+        }
+
+        // Apply saved language on load
+        applyLang();
+
+        // Scroll animation
+        function handleScroll() {
+            const elements = document.querySelectorAll('.fade-in');
+            elements.forEach(el => {
+                const rect = el.getBoundingClientRect();
+                const isVisible = rect.top < window.innerHeight - 100;
+                if (isVisible) {
+                    el.classList.add('visible');
+                }
+            });
+        }
+
+        // Side nav visibility
+        const sideNav = document.getElementById('sideNav');
+        const examplesSection = document.getElementById('examples');
+
+        function updateSideNav() {
+            const rect = examplesSection.getBoundingClientRect();
+            const inView = rect.top < window.innerHeight && rect.bottom > 0;
+            sideNav.classList.toggle('visible', inView);
+        }
+
+        // Smooth scroll for side nav items
+        document.querySelectorAll('.side-nav-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                e.preventDefault();
+                const target = document.querySelector(item.getAttribute('href'));
+                target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            });
+        });
+
+        // Initial check and scroll listener
+        window.addEventListener('scroll', () => {
+            handleScroll();
+            updateSideNav();
+        });
+        window.addEventListener('load', () => {
+            handleScroll();
+            updateSideNav();
+        });
+
+        // Trigger initial animation
+        setTimeout(() => {
+            handleScroll();
+            updateSideNav();
+        }, 100);
+    </script>
+</body>
+</html>

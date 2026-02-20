@@ -1,0 +1,33 @@
+FROM python:{python_version}-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    build-essential \
+    {system_dependencies} \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace
+
+# Copy and install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Copy source code
+COPY src/ ./src/
+COPY configs/ ./configs/
+COPY tests/ ./tests/
+
+# Set environment variables for reproducibility
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONHASHSEED=0
+ENV OMP_NUM_THREADS=1
+ENV MKL_NUM_THREADS=1
+
+# Verify setup
+RUN python -c "import sys; print(f'Python {{sys.version}}')" && \
+    pip list
+
+# Default command
+CMD ["python", "src/main.py", "--help"]

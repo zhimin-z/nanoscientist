@@ -1,0 +1,1358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Skill Tree Visualization</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #e4e4e4;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .header {
+            padding: 20px 40px;
+            background: rgba(0, 0, 0, 0.3);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .stats {
+            display: flex;
+            gap: 30px;
+            padding: 20px 40px;
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: #4fc3f7;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: #888;
+            text-transform: uppercase;
+        }
+
+        .search-container {
+            padding: 15px 40px;
+            background: rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+
+        .search-wrapper {
+            position: relative;
+            max-width: 500px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 12px 40px 12px 15px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            color: #fff;
+            font-size: 14px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .search-input::placeholder {
+            color: #666;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #4fc3f7;
+            box-shadow: 0 0 0 3px rgba(79, 195, 247, 0.2);
+        }
+
+        .search-clear {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 20px;
+            height: 20px;
+            border: none;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            color: #fff;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            line-height: 1;
+        }
+
+        .search-clear:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .search-clear.visible {
+            display: flex;
+        }
+
+        .search-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-top: 10px;
+        }
+
+        .search-count {
+            font-size: 13px;
+            color: #4fc3f7;
+            display: none;
+        }
+
+        .search-count.visible {
+            display: block;
+        }
+
+        .search-nav {
+            display: none;
+            gap: 5px;
+        }
+
+        .search-nav.visible {
+            display: flex;
+        }
+
+        .search-nav button {
+            padding: 4px 10px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.05);
+            color: #fff;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .search-nav button:hover {
+            background: rgba(79, 195, 247, 0.2);
+            border-color: #4fc3f7;
+        }
+
+        .search-nav button:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        .search-results {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            max-width: 500px;
+            max-height: 300px;
+            overflow-y: auto;
+            background: rgba(0, 0, 0, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            display: none;
+            z-index: 100;
+        }
+
+        .search-results.visible {
+            display: block;
+        }
+
+        .search-result-item {
+            padding: 10px 15px;
+            cursor: pointer;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            transition: background 0.15s;
+        }
+
+        .search-result-item:last-child {
+            border-bottom: none;
+        }
+
+        .search-result-item:hover,
+        .search-result-item.active {
+            background: rgba(79, 195, 247, 0.2);
+        }
+
+        .search-result-name {
+            font-weight: 500;
+            color: #fff;
+            margin-bottom: 2px;
+        }
+
+        .search-result-path {
+            font-size: 11px;
+            color: #888;
+        }
+
+        .search-result-type {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            margin-left: 8px;
+            text-transform: uppercase;
+        }
+
+        .search-result-type--skill {
+            background: rgba(255, 183, 77, 0.3);
+            color: #ffb74d;
+        }
+
+        .search-result-type--category {
+            background: rgba(79, 195, 247, 0.3);
+            color: #4fc3f7;
+        }
+
+        .tree-container {
+            padding: 20px;
+            overflow: auto;
+        }
+
+        .node circle {
+            cursor: pointer;
+            stroke-width: 2px;
+            transition: stroke-width 0.2s, filter 0.2s;
+        }
+
+        .node text {
+            font-size: 12px;
+            fill: #e4e4e4;
+            transition: font-weight 0.2s;
+        }
+
+        .node--domain circle,
+        .node--category circle {
+            fill: #4fc3f7;
+            stroke: #4fc3f7;
+        }
+
+        .node--type circle {
+            fill: #81c784;
+            stroke: #81c784;
+        }
+
+        .node--skill circle {
+            fill: #ffb74d;
+            stroke: #ffb74d;
+        }
+
+        .node--category circle {
+            fill: #4fc3f7;
+            stroke: #4fc3f7;
+        }
+
+        .node--collapsed circle {
+            fill: #1a1a2e;
+        }
+
+        .node--match circle {
+            stroke: #ffd700 !important;
+            stroke-width: 4px !important;
+            filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.8));
+        }
+
+        .node--match text {
+            font-weight: 700;
+            fill: #ffd700;
+        }
+
+        .node--current circle {
+            stroke: #ff4081 !important;
+            stroke-width: 5px !important;
+            filter: drop-shadow(0 0 12px rgba(255, 64, 129, 0.9));
+        }
+
+        .node--current text {
+            font-weight: 700;
+            fill: #ff4081;
+        }
+
+        .link {
+            fill: none;
+            stroke: rgba(255, 255, 255, 0.2);
+            stroke-width: 1.5px;
+        }
+
+        .tooltip {
+            position: absolute;
+            padding: 12px 16px;
+            background: rgba(0, 0, 0, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            font-size: 13px;
+            max-width: 300px;
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        .tooltip-title {
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #4fc3f7;
+        }
+
+        .tooltip-desc {
+            color: #aaa;
+            line-height: 1.4;
+        }
+
+        .legend {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 8px;
+            font-size: 12px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 5px;
+        }
+
+        .legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .legend-dot--domain { background: #4fc3f7; }
+        .legend-dot--type { background: #81c784; }
+        .legend-dot--skill { background: #ffb74d; }
+
+        .highlight {
+            font-weight: bold;
+        }
+
+        .dimmed {
+            opacity: 0.3;
+        }
+
+        .keyboard-hint {
+            font-size: 11px;
+            color: #666;
+            margin-left: auto;
+        }
+
+        .keyboard-hint kbd {
+            display: inline-block;
+            padding: 2px 5px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            font-family: inherit;
+            margin: 0 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Skill Tree Visualization</h1>
+    </div>
+
+    <div class="stats">
+        <div class="stat-item">
+            <span class="stat-value">53</span>
+            <span class="stat-label">Skills</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-value">16</span>
+            <span class="stat-label">Categories</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-value">2</span>
+            <span class="stat-label">Max Depth</span>
+        </div>
+    </div>
+
+    <div class="search-container">
+        <div class="search-wrapper">
+            <input type="text" class="search-input" placeholder="Search skills by name, id, or description..." id="search" autocomplete="off">
+            <button class="search-clear" id="search-clear" title="Clear search">&times;</button>
+            <div class="search-results" id="search-results"></div>
+        </div>
+        <div class="search-info">
+            <span class="search-count" id="search-count"></span>
+            <div class="search-nav" id="search-nav">
+                <button id="prev-result" title="Previous result (↑)">&#9650; Prev</button>
+                <button id="next-result" title="Next result (↓)">Next &#9660;</button>
+            </div>
+            <span class="keyboard-hint"><kbd>↑</kbd><kbd>↓</kbd> navigate <kbd>Enter</kbd> jump <kbd>Esc</kbd> close</span>
+        </div>
+    </div>
+
+    <div class="tree-container" id="tree"></div>
+
+    <div class="legend">
+        <div class="legend-item">
+            <span class="legend-dot legend-dot--domain"></span>
+            <span>Category</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-dot legend-dot--skill"></span>
+            <span>Skill</span>
+        </div>
+    </div>
+
+    <div class="tooltip" id="tooltip" style="display: none;"></div>
+
+    <script>
+        const treeData = {
+  "name": "Root",
+  "id": "root",
+  "description": "Skill capability tree root",
+  "type": "root",
+  "children": [
+    {
+      "name": "Content Creation",
+      "id": "content-creation",
+      "description": "Use this category when the goal is to create or polish deliverables meant for people to read, view, or share—docs, slides, branded assets, images, infographics, GIFs, and written communications. It includes document/presentation tooling, brand and theme styling, and creative generators for visuals and social content. Look here whenever you need authoring, design, copywriting, or formatting that results in publishable content.",
+      "type": "category",
+      "children": [
+        {
+          "name": "Visual Asset Creation",
+          "id": "visual-asset-creation",
+          "description": "Create or edit publishable visual assets like illustrations, posters, branded graphics, and other static images. Includes general image generation, bespoke design work, and coded/generative art approaches. Look here when the output is primarily a visual artifact (PNG/PDF/image-based deliverable).",
+          "type": "type",
+          "children": [
+            {
+              "name": "generate-image",
+              "id": "generate-image",
+              "description": "Generate or edit images using AI models (FLUX, Gemini). Use for general-purpose image generation including photos, illustrations, artwork, visual assets, concept art, and any image that isn't a technical diagram or schematic. For flowcharts, circuits, pathways, and technical diagrams, use the scientific-schematics skill instead.",
+              "type": "skill"
+            },
+            {
+              "name": "canvas-design",
+              "id": "canvas-design",
+              "description": "Create beautiful visual art in .png and .pdf documents using design philosophy. You should use this skill when the user asks to create a poster, piece of art, design, or other static piece. Create original visual designs, never copying existing artists' work to avoid copyright violations.",
+              "type": "skill"
+            },
+            {
+              "name": "algorithmic-art",
+              "id": "algorithmic-art",
+              "description": "Creating algorithmic art using p5.js with seeded randomness and interactive parameter exploration. Use this when users request creating art using code, generative art, algorithmic art, flow fields, or particle systems. Create original algorithmic art rather than copying existing artists' work to avoid copyright violations.",
+              "type": "skill"
+            },
+            {
+              "name": "beads",
+              "id": "beads",
+              "description": ">",
+              "type": "skill"
+            }
+          ]
+        },
+        {
+          "name": "Infographics & Social Visuals",
+          "id": "infographics-and-social-visuals",
+          "description": "Turn ideas into shareable, platform-oriented visual content—especially multi-panel infographic formats. Includes tools that structure content into image sequences and optimize for social consumption. Look here when you need visual-first social assets rather than long-form documents.",
+          "type": "type",
+          "children": [
+            {
+              "name": "baoyu-xhs-images",
+              "id": "baoyu-xhs-images",
+              "description": "Xiaohongshu (Little Red Book) infographic series generator with multiple style options. Breaks down content into 1-10 cartoon-style infographics. Use when user asks to create \"小红书图片\", \"XHS images\", or \"RedNote infographics\".",
+              "type": "skill"
+            },
+            {
+              "name": "slack-gif-creator",
+              "id": "slack-gif-creator",
+              "description": "Knowledge and utilities for creating animated GIFs optimized for Slack. Provides constraints, validation tools, and animation concepts. Use when users request animated GIFs for Slack like \"make me a GIF of X doing Y for Slack.\"",
+              "type": "skill"
+            }
+          ]
+        },
+        {
+          "name": "Document & Presentation Production",
+          "id": "document-and-presentation-production",
+          "description": "Author, edit, and refine professional docs and slide decks, including preserving formatting and working with native office file types. Covers structured documentation workflows as well as direct editing/creation of .docx and .pptx outputs. Look here when the deliverable is a formal document, spec, proposal, or presentation file.",
+          "type": "type",
+          "children": [
+            {
+              "name": "doc-coauthoring",
+              "id": "doc-coauthoring",
+              "description": "Guide users through a structured workflow for co-authoring documentation. Use when user wants to write documentation, proposals, technical specs, decision docs, or similar structured content. This workflow helps users efficiently transfer context, refine content through iteration, and verify the doc works for readers. Trigger when user mentions writing docs, creating proposals, drafting specs, or similar documentation tasks.",
+              "type": "skill"
+            },
+            {
+              "name": "docx",
+              "id": "docx",
+              "description": "Comprehensive document creation, editing, and analysis with support for tracked changes, comments, formatting preservation, and text extraction. When Claude needs to work with professional documents (.docx files) for: (1) Creating new documents, (2) Modifying or editing content, (3) Working with tracked changes, (4) Adding comments, or any other document tasks",
+              "type": "skill"
+            },
+            {
+              "name": "pptx",
+              "id": "pptx",
+              "description": "Presentation creation, editing, and analysis. When Claude needs to work with presentations (.pptx files) for: (1) Creating new presentations, (2) Modifying or editing content, (3) Working with layouts, (4) Adding comments or speaker notes, or any other presentation tasks",
+              "type": "skill"
+            }
+          ]
+        },
+        {
+          "name": "Brand & Theme Styling",
+          "id": "brand-and-theme-styling",
+          "description": "Apply consistent visual identity across artifacts (docs, slides, pages, and other publishable materials) using brand rules and reusable themes. Includes both strict brand-guideline adherence and flexible theme application/generation. Look here when the main goal is “make it match our brand/style” rather than creating new content from scratch.",
+          "type": "type",
+          "children": [
+            {
+              "name": "brand-guidelines",
+              "id": "brand-guidelines",
+              "description": "Applies Anthropic's official brand colors and typography to any sort of artifact that may benefit from having Anthropic's look-and-feel. Use it when brand colors or style guidelines, visual formatting, or company design standards apply.",
+              "type": "skill"
+            },
+            {
+              "name": "theme-factory",
+              "id": "theme-factory",
+              "description": "Toolkit for styling artifacts with a theme. These artifacts can be slides, docs, reportings, HTML landing pages, etc. There are 10 pre-set themes with colors/fonts that you can apply to any artifact that has been creating, or can generate a new theme on-the-fly.",
+              "type": "skill"
+            }
+          ]
+        },
+        {
+          "name": "Written Comms & Social Copy",
+          "id": "written-comms-and-social-copy",
+          "description": "Draft and polish written communications intended to be sent or posted—emails, internal updates, announcements, and social posts. Includes tools for platform-appropriate copy and for improving humor when comedic tone is desired. Look here when the primary deliverable is text meant to be read and shared.",
+          "type": "type",
+          "children": [
+            {
+              "name": "Email Composer",
+              "id": "email-composer",
+              "description": "Draft professional emails for various contexts including business, technical, and customer communication. Use when the user needs help writing emails or composing professional messages.",
+              "type": "skill"
+            },
+            {
+              "name": "internal-comms",
+              "id": "internal-comms",
+              "description": "A set of resources to help me write all kinds of internal communications, using the formats that my company likes to use. Claude should use this skill whenever asked to write some sort of internal communications (status reports, leadership updates, 3P updates, company newsletters, FAQs, incident reports, project updates, etc.).",
+              "type": "skill"
+            },
+            {
+              "name": "social-media-generator",
+              "id": "social-media-generator",
+              "description": "This skill should be used when the user requests social media content creation for Twitter, Instagram, LinkedIn, or Facebook. It generates platform-optimized posts and saves them in an organized folder structure with meaningful filenames based on event details.",
+              "type": "skill"
+            },
+            {
+              "name": "joke-engineering",
+              "id": "joke-engineering",
+              "description": "Diagnose and improve humor using systems thinking. Use when jokes fall flat, when humor feels forced, when punchlines don't land, or when you want to systematically enhance comedic writing. Treats jokes as engineerable connection systems.",
+              "type": "skill"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Data Processing",
+      "id": "data-processing",
+      "description": "Use this category when you need to transform, analyze, visualize, or convert data and files into usable outputs. It includes statistical analysis and charting, spreadsheet/PDF extraction and manipulation, document-to-Markdown conversion, and media transformation pipelines (including color grading and chroma key). Look here for workflows focused on processing inputs into insights or cleaned/converted artifacts.",
+      "type": "type",
+      "children": [
+        {
+          "name": "data-storytelling",
+          "id": "data-storytelling",
+          "description": "Transform data into compelling narratives using visualization, context, and persuasive structure. Use when presenting analytics to stakeholders, creating data reports, or building executive presentations.",
+          "type": "skill"
+        },
+        {
+          "name": "data-visualization",
+          "id": "data-visualization",
+          "description": "Creates effective data visualizations using various libraries and tools, with focus on clarity and insight communication. Trigger keywords: chart, graph, plot, visualization, dashboard, matplotlib, d3, plotly, visualization.",
+          "type": "skill"
+        },
+        {
+          "name": "ffmpeg-color-grading-chromakey",
+          "id": "ffmpeg-color-grading-chromakey",
+          "description": "Complete color manipulation and green screen effects system. PROACTIVELY activate for: (1) Green screen/chromakey removal, (2) Color grading with LUTs, (3) Color correction (levels, curves, white balance), (4) Colorkey/color removal effects, (5) Hue/saturation manipulation, (6) Color space conversions (BT.709, BT.2020, HDR), (7) Color isolation effects, (8) Teal and orange look, (9) Vintage/film looks, (10) Color keying for transparency. Provides: chromakey and colorkey filters, LUT application (lut3d), curves and levels adjustment, color balance, selective color manipulation, color space handling, HDR tone mapping, professional color grading chains.",
+          "type": "skill"
+        },
+        {
+          "name": "markitdown",
+          "id": "markitdown",
+          "description": "Convert files and office documents to Markdown. Supports PDF, DOCX, PPTX, XLSX, images (with OCR), audio (with transcription), HTML, CSV, JSON, XML, ZIP, YouTube URLs, EPubs and more.",
+          "type": "skill"
+        },
+        {
+          "name": "media-processing",
+          "id": "media-processing",
+          "description": "Process multimedia files with FFmpeg (video/audio encoding, conversion, streaming, filtering, hardware acceleration), ImageMagick (image manipulation, format conversion, batch processing, effects, composition), and RMBG (AI-powered background removal). Use when converting media formats, encoding videos with specific codecs (H.264, H.265, VP9), resizing/cropping images, removing backgrounds from images, extracting audio from video, applying filters and effects, optimizing file sizes, creating streaming manifests (HLS/DASH), generating thumbnails, batch processing images, creating composite images, or implementing media processing pipelines. Supports 100+ formats, hardware acceleration (NVENC, QSV), and complex filtergraphs.",
+          "type": "skill"
+        },
+        {
+          "name": "pdf",
+          "id": "pdf",
+          "description": "Comprehensive PDF manipulation toolkit for extracting text and tables, creating new PDFs, merging/splitting documents, and handling forms. When Claude needs to fill in a PDF form or programmatically process, generate, or analyze PDF documents at scale.",
+          "type": "skill"
+        },
+        {
+          "name": "statistical-analysis",
+          "id": "statistical-analysis",
+          "description": "Statistical analysis toolkit. Hypothesis tests (t-test, ANOVA, chi-square), regression, correlation, Bayesian stats, power analysis, assumption checks, APA reporting, for academic research.",
+          "type": "skill"
+        },
+        {
+          "name": "xlsx",
+          "id": "xlsx",
+          "description": "Comprehensive spreadsheet creation, editing, and analysis with support for formulas, formatting, data analysis, and visualization. When Claude needs to work with spreadsheets (.xlsx, .xlsm, .csv, .tsv, etc) for: (1) Creating new spreadsheets with formulas and formatting, (2) Reading or analyzing data, (3) Modify existing spreadsheets while preserving formulas, (4) Data analysis and visualization in spreadsheets, or (5) Recalculating formulas",
+          "type": "skill"
+        }
+      ]
+    },
+    {
+      "name": "Development",
+      "id": "development",
+      "description": "Use this category when building, integrating, or improving software systems—APIs, authentication, databases, frontend/UI code, LLM prompting, and ML model usage. It includes developer best practices (code review, performance), system design/diagramming, schema and SQL optimization, testing, and tooling for creating MCP servers or reusable skills. Look here whenever the primary output is code, architecture, or engineering guidance.",
+      "type": "category",
+      "children": [
+        {
+          "name": "Integrations & Platform APIs",
+          "id": "integrations-and-platform-apis",
+          "description": "Use this group when connecting your system to external services or exposing tools for LLMs via well-defined interfaces. It covers building robust API clients/servers, handling auth and credentials, and designing reliable integration patterns (rate limits, retries, webhooks, request/response transforms). Look here whenever the main goal is to make systems talk to each other securely and predictably.",
+          "type": "type",
+          "children": [
+            {
+              "name": "API Integration Specialist",
+              "id": "api-integration-specialist",
+              "description": "Expert in integrating third-party APIs with proper authentication, error handling, rate limiting, and retry logic. Use when integrating REST APIs, GraphQL endpoints, webhooks, or external services. Specializes in OAuth flows, API key management, request/response transformation, and building robust API clients.",
+              "type": "skill"
+            },
+            {
+              "name": "auth-implementation-patterns",
+              "id": "auth-implementation-patterns",
+              "description": "Master authentication and authorization patterns including JWT, OAuth2, session management, and RBAC to build secure, scalable access control systems. Use when implementing auth systems, securing APIs, or debugging security issues.",
+              "type": "skill"
+            },
+            {
+              "name": "openai-api",
+              "id": "openai-api",
+              "description": "|",
+              "type": "skill"
+            },
+            {
+              "name": "mcp-builder",
+              "id": "mcp-builder",
+              "description": "Guide for creating high-quality MCP (Model Context Protocol) servers that enable LLMs to interact with external services through well-designed tools. Use when building MCP servers to integrate external APIs or services, whether in Python (FastMCP) or Node/TypeScript (MCP SDK).",
+              "type": "skill"
+            }
+          ]
+        },
+        {
+          "name": "Database & Query Engineering",
+          "id": "database-and-query-engineering",
+          "description": "Use this group when designing PostgreSQL schemas or improving how your app reads/writes data. It focuses on table design, constraints, indexing, and query-level performance via optimization and EXPLAIN-driven analysis. Look here for guidance that materially affects correctness and speed of database-backed systems.",
+          "type": "type",
+          "children": [
+            {
+              "name": "postgresql-table-design",
+              "id": "postgresql-table-design",
+              "description": "Design a PostgreSQL-specific schema. Covers best-practices, data types, indexing, constraints, performance patterns, and advanced features",
+              "type": "skill"
+            },
+            {
+              "name": "sql-optimization-patterns",
+              "id": "sql-optimization-patterns",
+              "description": "Master SQL query optimization, indexing strategies, and EXPLAIN analysis to dramatically improve database performance and eliminate slow queries. Use when debugging slow queries, designing database schemas, or optimizing application performance.",
+              "type": "skill"
+            }
+          ]
+        },
+        {
+          "name": "Frontend & Interactive Experiences",
+          "id": "frontend-and-interactive-experiences",
+          "description": "Use this group when building user-facing web UI or interactive educational/visual artifacts. It includes production-grade frontend design and complex multi-component web artifacts, plus end-to-end MicroSim generation with appropriate visualization libraries. Look here when the primary output is UI code, interactive demos, or polished web experiences.",
+          "type": "type",
+          "children": [
+            {
+              "name": "frontend-design",
+              "id": "frontend-design",
+              "description": "Create distinctive, production-grade frontend interfaces with high design quality. Use this skill when the user asks to build web components, pages, artifacts, posters, or applications (examples include websites, landing pages, dashboards, React components, HTML/CSS layouts, or when styling/beautifying any web UI). Generates creative, polished code and UI design that avoids generic AI aesthetics.",
+              "type": "skill"
+            },
+            {
+              "name": "web-artifacts-builder",
+              "id": "web-artifacts-builder",
+              "description": "Suite of tools for creating elaborate, multi-component claude.ai HTML artifacts using modern frontend web technologies (React, Tailwind CSS, shadcn/ui). Use for complex artifacts requiring state management, routing, or shadcn/ui components - not for simple single-file HTML/JSX artifacts.",
+              "type": "skill"
+            },
+            {
+              "name": "microsim-generator",
+              "id": "microsim-generator",
+              "description": "Creates interactive educational MicroSims using the best-matched JavaScript library (p5.js, Chart.js, Plotly, Mermaid, vis-network, vis-timeline, Leaflet, Venn.js). Analyzes user requirements to route to the appropriate visualization type and generates complete MicroSim packages with HTML, JavaScript, CSS, documentation, and metadata.",
+              "type": "skill"
+            }
+          ]
+        },
+        {
+          "name": "LLM Prompting & ML Modeling",
+          "id": "llm-and-ml-modeling",
+          "description": "Use this group when developing with LLMs or modern ML models as core building blocks. It covers production prompt design patterns for reliability/controllability and hands-on use of HuggingFace Transformers for inference, fine-tuning, and task-specific NLP/vision workflows. Look here when the output is prompts, model usage code, or ML training/inference guidance.",
+          "type": "type",
+          "children": [
+            {
+              "name": "prompt-engineering-patterns",
+              "id": "prompt-engineering-patterns",
+              "description": "Master advanced prompt engineering techniques to maximize LLM performance, reliability, and controllability in production. Use when optimizing prompts, improving LLM outputs, or designing production prompt templates.",
+              "type": "skill"
+            },
+            {
+              "name": "transformers",
+              "id": "transformers",
+              "description": "Work with state-of-the-art machine learning models for NLP, computer vision, audio, and multimodal tasks using HuggingFace Transformers. This skill should be used when fine-tuning pre-trained models, performing inference with pipelines, generating text, training sequence models, or working with BERT, GPT, T5, ViT, and other transformer architectures. Covers model loading, tokenization, training with Trainer API, text generation strategies, and task-specific patterns for classification, NER, QA, summarization, translation, and image tasks. (plugin:scientific-packages@claude-scientific-skills)",
+              "type": "skill"
+            }
+          ]
+        },
+        {
+          "name": "Engineering Workflow & Quality",
+          "id": "engineering-workflow-and-quality",
+          "description": "Use this group when improving code quality, delivery safety, and runtime efficiency across a software project. It includes structured code review practices, systematic performance optimization, practical webapp testing, and a disciplined approach to handling merge conflicts. Look here when the goal is fewer bugs, faster systems, and smoother team execution.",
+          "type": "type",
+          "children": [
+            {
+              "name": "code-review-excellence",
+              "id": "code-review-excellence",
+              "description": "Master effective code review practices to provide constructive feedback, catch bugs early, and foster knowledge sharing while maintaining team morale. Use when reviewing pull requests, establishing review standards, or mentoring developers.",
+              "type": "skill"
+            },
+            {
+              "name": "performance-optimization",
+              "id": "performance-optimization",
+              "description": "Apply systematic performance optimization techniques when writing or reviewing code. Use when optimizing hot paths, reducing latency, improving throughput, fixing performance regressions, or when the user mentions performance, optimization, speed, latency, throughput, profiling, or benchmarking.",
+              "type": "skill"
+            },
+            {
+              "name": "webapp-testing",
+              "id": "webapp-testing",
+              "description": "Toolkit for interacting with and testing local web applications using Playwright. Supports verifying frontend functionality, debugging UI behavior, capturing browser screenshots, and viewing browser logs.",
+              "type": "skill"
+            },
+            {
+              "name": "resolve-conflicts",
+              "id": "resolve-conflicts",
+              "description": "Use this skill immediately when the user mentions merge conflicts that need to be resolved. Do not attempt to resolve conflicts directly - invoke this skill first. This skill specializes in providing a structured framework for merging imports, tests, lock files (regeneration), configuration files, and handling deleted-but-modified files with backup and analysis.",
+              "type": "skill"
+            }
+          ]
+        },
+        {
+          "name": "Architecture & Skill Design",
+          "id": "architecture-and-skill-design",
+          "description": "Use this group when you need to communicate or formalize how a system (or reusable assistant capability) should work. It includes diagramming for architectures/flows/ERDs and guidance for defining and packaging new skills with clear triggers, scopes, and workflows. Look here when the primary output is a design artifact/specification rather than application code itself.",
+          "type": "type",
+          "children": [
+            {
+              "name": "diagramming",
+              "id": "diagramming",
+              "description": "Create technical diagrams using Mermaid syntax for architecture, sequences, ERDs, flowcharts, and state machines. Use for visualizing system design, data flows, and processes. Triggers: diagram, mermaid, architecture diagram, sequence diagram, flowchart, ERD, entity relationship, state diagram, C4 model, component diagram, visualize, draw.",
+              "type": "skill"
+            },
+            {
+              "name": "skill-creator",
+              "id": "skill-creator",
+              "description": "Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends Claude's capabilities with specialized knowledge, workflows, or tool integrations.",
+              "type": "skill"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Automation",
+      "id": "automation",
+      "description": "Use this category when you want to automate repetitive workflows across the web or tools—scraping, form filling, navigation, capture, and extraction. It includes browser automation (with and without persistent state), dedicated scraping utilities, and workflow-oriented prompt/pattern selection. Look here when the key requirement is execution of a process rather than creating content or writing application code.",
+      "type": "type",
+      "children": [
+        {
+          "name": "browser-automation",
+          "id": "browser-automation",
+          "description": "Non-testing browser automation - web scraping, form filling, screenshot capture, PDF generation, workflow automation. For TESTING with Playwright, use e2e-playwright skill instead. Activates for web scraping, form automation, screenshot, PDF, headless browser, Puppeteer, Selenium, automation scripts, data extraction.",
+          "type": "skill"
+        },
+        {
+          "name": "dev-browser",
+          "id": "dev-browser",
+          "description": "Browser automation with persistent page state. Use when users ask to navigate websites, fill forms, take screenshots, extract web data, test web apps, or automate browser workflows. Trigger phrases include \"go to [url]\", \"click on\", \"fill out the form\", \"take a screenshot\", \"scrape\", \"automate\", \"test the website\", \"log into\", or any browser interaction request.",
+          "type": "skill"
+        },
+        {
+          "name": "fabric",
+          "id": "fabric",
+          "description": "Intelligent pattern selection for Fabric CLI. Automatically selects the right pattern from 242+ specialized prompts based on your intent - threat modeling, analysis, summarization, content creation, extraction, and more. USE WHEN processing content, analyzing data, creating summaries, threat modeling, or transforming text.",
+          "type": "skill"
+        },
+        {
+          "name": "firecrawl-scraper",
+          "id": "firecrawl-scraper",
+          "description": "|",
+          "type": "skill"
+        }
+      ]
+    },
+    {
+      "name": "Domain Specific",
+      "id": "domain-specific",
+      "description": "Use this category when the task is anchored in a specialized professional domain such as finance, healthcare/clinical research, grants, HR/legal templates, marketing growth, product management, or scientific tooling. These skills embed domain conventions, metrics, and compliance expectations to produce industry-appropriate outputs. Look here when generic writing or analysis isn’t enough and you need expert, domain-aligned structure and decisions.",
+      "type": "type",
+      "children": [
+        {
+          "name": "analyzing-financial-statements",
+          "id": "analyzing-financial-statements",
+          "description": "This skill calculates key financial ratios and metrics from financial statement data for investment analysis",
+          "type": "skill"
+        },
+        {
+          "name": "clinical-decision-support",
+          "id": "clinical-decision-support",
+          "description": "Generate professional clinical decision support (CDS) documents for pharmaceutical and clinical research settings, including patient cohort analyses (biomarker-stratified with outcomes) and treatment recommendation reports (evidence-based guidelines with decision algorithms). Supports GRADE evidence grading, statistical analysis (hazard ratios, survival curves, waterfall plots), biomarker integration, and regulatory compliance. Outputs publication-ready LaTeX/PDF format optimized for drug development, clinical research, and evidence synthesis.",
+          "type": "skill"
+        },
+        {
+          "name": "creating-financial-models",
+          "id": "creating-financial-models",
+          "description": "This skill provides an advanced financial modeling suite with DCF analysis, sensitivity testing, Monte Carlo simulations, and scenario planning for investment decisions",
+          "type": "skill"
+        },
+        {
+          "name": "employment-contract-templates",
+          "id": "employment-contract-templates",
+          "description": "Create employment contracts, offer letters, and HR policy documents following legal best practices. Use when drafting employment agreements, creating HR policies, or standardizing employment documentation.",
+          "type": "skill"
+        },
+        {
+          "name": "marketing-demand-acquisition",
+          "id": "marketing-demand-acquisition",
+          "description": "Multi-channel demand generation, paid media optimization, SEO strategy, and partnership programs for Series A+ startups. Includes CAC calculator, channel playbooks, HubSpot integration, and international expansion tactics. Use when planning demand generation campaigns, optimizing paid media, building SEO strategies, establishing partnerships, or when user mentions demand gen, paid ads, LinkedIn ads, Google ads, CAC, acquisition, lead generation, or pipeline generation.",
+          "type": "skill"
+        },
+        {
+          "name": "product-requirements",
+          "id": "product-requirements",
+          "description": "Interactive Product Owner skill for requirements gathering, analysis, and PRD generation. Triggers when users request product requirements, feature specification, PRD creation, or need help understanding and documenting project requirements. Uses quality scoring and iterative dialogue to ensure comprehensive requirements before generating professional PRD documents.",
+          "type": "skill"
+        },
+        {
+          "name": "research-grants",
+          "id": "research-grants",
+          "description": "Write competitive research proposals for NSF, NIH, DOE, and DARPA. Agency-specific formatting, review criteria, budget preparation, broader impacts, significance statements, innovation narratives, and compliance with submission requirements.",
+          "type": "skill"
+        },
+        {
+          "name": "tooluniverse",
+          "id": "tooluniverse",
+          "description": "Use this skill when working with scientific research tools and workflows across bioinformatics, cheminformatics, genomics, structural biology, proteomics, and drug discovery. This skill provides access to 600+ scientific tools including machine learning models, datasets, APIs, and analysis packages. Use when searching for scientific tools, executing computational biology workflows, composing multi-step research pipelines, accessing databases like OpenTargets/PubChem/UniProt/PDB/ChEMBL, performing tool discovery for research tasks, or integrating scientific computational resources into LLM workflows.",
+          "type": "skill"
+        },
+        {
+          "name": "treatment-plans",
+          "id": "treatment-plans",
+          "description": "Generate concise (3-4 page), focused medical treatment plans in LaTeX/PDF format for all clinical specialties. Supports general medical treatment, rehabilitation therapy, mental health care, chronic disease management, perioperative care, and pain management. Includes SMART goal frameworks, evidence-based interventions with minimal text citations, regulatory compliance (HIPAA), and professional formatting. Prioritizes brevity and clinical actionability.",
+          "type": "skill"
+        }
+      ]
+    }
+  ]
+};
+
+        const marginLeft = 60;
+        const marginTop = 50;
+        const nodeVerticalSpacing = 30;  // Vertical spacing between nodes
+        const nodeHorizontalSpacing = 220;  // Horizontal spacing between depth levels
+
+        const root = d3.hierarchy(treeData);
+        root.x0 = 0;
+        root.y0 = 0;
+
+        // Collapse children initially for domains
+        root.children.forEach(d => {
+            if (d.children) {
+                d._children = d.children;
+                d.children = null;
+            }
+        });
+
+        const svgElement = d3.select("#tree")
+            .append("svg")
+            .attr("width", window.innerWidth)
+            .attr("height", Math.max(window.innerHeight - 200, 800));
+
+        const svg = svgElement.append("g")
+            .attr("transform", `translate(${marginLeft}, ${marginTop})`);
+
+        // Use nodeSize for consistent spacing instead of fixed size
+        const tree = d3.tree()
+            .nodeSize([nodeVerticalSpacing, nodeHorizontalSpacing])
+            .separation((a, b) => a.parent === b.parent ? 1 : 1.5);
+
+        const tooltip = d3.select("#tooltip");
+
+        // Search state
+        let searchMatches = [];
+        let currentMatchIndex = -1;
+
+        function update(source) {
+            const duration = 300;
+
+            // Compute the new tree layout
+            tree(root);
+
+            const nodes = root.descendants();
+            const links = root.links();
+
+            // Calculate bounds of visible nodes
+            let minX = Infinity, maxX = -Infinity;
+            let maxY = 0;
+            nodes.forEach(d => {
+                minX = Math.min(minX, d.x);
+                maxX = Math.max(maxX, d.x);
+                maxY = Math.max(maxY, d.y);
+            });
+
+            // Dynamic SVG sizing based on tree bounds
+            const treeHeight = maxX - minX + 100;
+            const treeWidth = maxY + 300;
+            const newHeight = Math.max(treeHeight, window.innerHeight - 200, 800);
+            const newWidth = Math.max(treeWidth, window.innerWidth);
+
+            svgElement
+                .transition()
+                .duration(duration)
+                .attr("height", newHeight)
+                .attr("width", newWidth);
+
+            // Adjust g transform to center tree vertically (offset by minX)
+            svg.transition()
+                .duration(duration)
+                .attr("transform", `translate(${marginLeft}, ${-minX + marginTop})`);
+
+            // Nodes
+            const node = svg.selectAll("g.node")
+                .data(nodes, d => d.data.id || d.data.name);
+
+            const nodeEnter = node.enter()
+                .append("g")
+                .attr("class", d => `node node--${d.data.type || 'root'}`)
+                .attr("transform", d => `translate(${source.y0}, ${source.x0})`)
+                .on("click", (event, d) => {
+                    if (d.children) {
+                        d._children = d.children;
+                        d.children = null;
+                    } else if (d._children) {
+                        d.children = d._children;
+                        d._children = null;
+                        // Collapse grandchildren to expand one level at a time
+                        d.children.forEach(child => {
+                            if (child.children) {
+                                child._children = child.children;
+                                child.children = null;
+                            }
+                        });
+                    }
+                    update(d);
+                })
+                .on("mouseover", (event, d) => {
+                    if (d.data.description) {
+                        tooltip.style("display", "block")
+                            .html(`<div class="tooltip-title">${d.data.name}</div><div class="tooltip-desc">${d.data.description}</div>`)
+                            .style("left", (event.pageX + 10) + "px")
+                            .style("top", (event.pageY - 10) + "px");
+                    }
+                })
+                .on("mouseout", () => {
+                    tooltip.style("display", "none");
+                });
+
+            nodeEnter.append("circle")
+                .attr("r", d => d.data.type === 'skill' ? 5 : 8)
+                .attr("class", d => d._children ? "node--collapsed" : "");
+
+            nodeEnter.append("text")
+                .attr("dy", "0.35em")
+                .attr("x", d => d.children || d._children ? -12 : 12)
+                .attr("text-anchor", d => d.children || d._children ? "end" : "start")
+                .text(d => d.data.name);
+
+            const nodeUpdate = nodeEnter.merge(node);
+
+            nodeUpdate.transition()
+                .duration(duration)
+                .attr("transform", d => `translate(${d.y}, ${d.x})`);
+
+            nodeUpdate.select("circle")
+                .attr("class", d => d._children ? "node--collapsed" : "");
+
+            const nodeExit = node.exit()
+                .transition()
+                .duration(duration)
+                .attr("transform", d => `translate(${source.y}, ${source.x})`)
+                .remove();
+
+            // Links
+            const link = svg.selectAll("path.link")
+                .data(links, d => d.target.data.id || d.target.data.name);
+
+            const linkEnter = link.enter()
+                .insert("path", "g")
+                .attr("class", "link")
+                .attr("d", d => {
+                    const o = {x: source.x0, y: source.y0};
+                    return diagonal(o, o);
+                });
+
+            linkEnter.merge(link)
+                .transition()
+                .duration(duration)
+                .attr("d", d => diagonal(d.source, d.target));
+
+            link.exit()
+                .transition()
+                .duration(duration)
+                .attr("d", d => {
+                    const o = {x: source.x, y: source.y};
+                    return diagonal(o, o);
+                })
+                .remove();
+
+            nodes.forEach(d => {
+                d.x0 = d.x;
+                d.y0 = d.y;
+            });
+
+            // Update search highlights after tree update
+            updateSearchHighlights();
+        }
+
+        function diagonal(s, d) {
+            return `M ${s.y} ${s.x}
+                    C ${(s.y + d.y) / 2} ${s.x},
+                      ${(s.y + d.y) / 2} ${d.x},
+                      ${d.y} ${d.x}`;
+        }
+
+        update(root);
+
+        // === Enhanced Search Functionality ===
+
+        function getAllNodes(node) {
+            // Recursively get all nodes including collapsed ones
+            const nodes = [node];
+            const children = node.children || node._children || [];
+            children.forEach(child => {
+                nodes.push(...getAllNodes(child));
+            });
+            return nodes;
+        }
+
+        function searchTree(query) {
+            if (!query) return [];
+
+            const allNodes = getAllNodes(root);
+            const matches = [];
+
+            allNodes.forEach(node => {
+                const name = (node.data.name || "").toLowerCase();
+                const id = (node.data.id || "").toLowerCase();
+                const desc = (node.data.description || "").toLowerCase();
+
+                if (name.includes(query) || id.includes(query) || desc.includes(query)) {
+                    matches.push(node);
+                }
+            });
+
+            return matches;
+        }
+
+        function getNodePath(node) {
+            const path = [];
+            let current = node;
+            while (current.parent) {
+                path.unshift(current.data.name);
+                current = current.parent;
+            }
+            return path.join(" > ");
+        }
+
+        function expandToNode(node) {
+            // Expand all ancestors to make the node visible
+            const ancestors = node.ancestors().reverse();
+            ancestors.forEach(ancestor => {
+                if (ancestor._children) {
+                    ancestor.children = ancestor._children;
+                    ancestor._children = null;
+                }
+            });
+        }
+
+        function scrollToNode(node) {
+            // Wait for D3 transition to complete then scroll
+            setTimeout(() => {
+                const nodeElement = svg.selectAll("g.node")
+                    .filter(d => d === node)
+                    .node();
+
+                if (nodeElement) {
+                    const rect = nodeElement.getBoundingClientRect();
+                    const container = document.querySelector('.tree-container');
+                    const containerRect = container.getBoundingClientRect();
+
+                    // Calculate scroll position to center the node
+                    const scrollLeft = rect.left - containerRect.left + container.scrollLeft - containerRect.width / 2;
+                    const scrollTop = rect.top - containerRect.top + container.scrollTop - containerRect.height / 2;
+
+                    container.scrollTo({
+                        left: Math.max(0, scrollLeft),
+                        top: Math.max(0, scrollTop),
+                        behavior: 'smooth'
+                    });
+                }
+            }, 350);
+        }
+
+        function updateSearchHighlights() {
+            // Clear all highlights
+            svg.selectAll("g.node")
+                .classed("node--match", false)
+                .classed("node--current", false);
+
+            if (searchMatches.length === 0) return;
+
+            // Get node IDs for matching
+            const matchIds = new Set(searchMatches.map(n => n.data.id || n.data.name));
+
+            // Highlight all matches
+            svg.selectAll("g.node")
+                .classed("node--match", d => matchIds.has(d.data.id || d.data.name));
+
+            // Highlight current match
+            if (currentMatchIndex >= 0 && currentMatchIndex < searchMatches.length) {
+                const currentNode = searchMatches[currentMatchIndex];
+                svg.selectAll("g.node")
+                    .filter(d => d === currentNode)
+                    .classed("node--current", true);
+            }
+        }
+
+        function renderSearchResults(matches, query) {
+            const resultsEl = document.getElementById('search-results');
+            const countEl = document.getElementById('search-count');
+            const navEl = document.getElementById('search-nav');
+            const clearBtn = document.getElementById('search-clear');
+
+            clearBtn.classList.toggle('visible', query.length > 0);
+
+            if (matches.length === 0) {
+                resultsEl.classList.remove('visible');
+                countEl.classList.remove('visible');
+                navEl.classList.remove('visible');
+                if (query) {
+                    countEl.textContent = 'No results found';
+                    countEl.classList.add('visible');
+                }
+                return;
+            }
+
+            countEl.textContent = `Found ${matches.length} result${matches.length > 1 ? 's' : ''}`;
+            countEl.classList.add('visible');
+            navEl.classList.add('visible');
+
+            // Build results list
+            let html = '';
+            matches.forEach((node, index) => {
+                const nodeType = node.data.type === 'skill' ? 'skill' : 'category';
+                html += `
+                    <div class="search-result-item${index === currentMatchIndex ? ' active' : ''}" data-index="${index}">
+                        <div class="search-result-name">
+                            ${escapeHtml(node.data.name)}
+                            <span class="search-result-type search-result-type--${nodeType}">${nodeType}</span>
+                        </div>
+                        <div class="search-result-path">${escapeHtml(getNodePath(node))}</div>
+                    </div>
+                `;
+            });
+
+            resultsEl.innerHTML = html;
+            resultsEl.classList.add('visible');
+
+            // Add click handlers
+            resultsEl.querySelectorAll('.search-result-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const index = parseInt(item.dataset.index);
+                    jumpToResult(index);
+                });
+            });
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function jumpToResult(index) {
+            if (index < 0 || index >= searchMatches.length) return;
+
+            currentMatchIndex = index;
+            const node = searchMatches[index];
+
+            // Expand path to node
+            expandToNode(node);
+
+            // Update tree
+            update(root);
+
+            // Scroll to node
+            scrollToNode(node);
+
+            // Update results list active state
+            document.querySelectorAll('.search-result-item').forEach((item, i) => {
+                item.classList.toggle('active', i === index);
+            });
+
+            // Scroll result into view if needed
+            const activeResult = document.querySelector('.search-result-item.active');
+            if (activeResult) {
+                activeResult.scrollIntoView({ block: 'nearest' });
+            }
+
+            updateNavButtons();
+        }
+
+        function updateNavButtons() {
+            const prevBtn = document.getElementById('prev-result');
+            const nextBtn = document.getElementById('next-result');
+
+            prevBtn.disabled = currentMatchIndex <= 0;
+            nextBtn.disabled = currentMatchIndex >= searchMatches.length - 1;
+        }
+
+        function clearSearch() {
+            const searchInput = document.getElementById('search');
+            searchInput.value = '';
+            searchMatches = [];
+            currentMatchIndex = -1;
+
+            document.getElementById('search-results').classList.remove('visible');
+            document.getElementById('search-count').classList.remove('visible');
+            document.getElementById('search-nav').classList.remove('visible');
+            document.getElementById('search-clear').classList.remove('visible');
+
+            updateSearchHighlights();
+        }
+
+        // Search input handler with debounce
+        let searchTimeout;
+        document.getElementById('search').addEventListener('input', function(e) {
+            clearTimeout(searchTimeout);
+            const query = e.target.value.toLowerCase().trim();
+
+            searchTimeout = setTimeout(() => {
+                searchMatches = searchTree(query);
+                currentMatchIndex = searchMatches.length > 0 ? 0 : -1;
+                renderSearchResults(searchMatches, query);
+                updateSearchHighlights();
+
+                // Auto-expand and scroll to first match
+                if (searchMatches.length > 0) {
+                    expandToNode(searchMatches[0]);
+                    update(root);
+                    scrollToNode(searchMatches[0]);
+                }
+            }, 200);
+        });
+
+        // Clear button
+        document.getElementById('search-clear').addEventListener('click', clearSearch);
+
+        // Navigation buttons
+        document.getElementById('prev-result').addEventListener('click', () => {
+            if (currentMatchIndex > 0) {
+                jumpToResult(currentMatchIndex - 1);
+            }
+        });
+
+        document.getElementById('next-result').addEventListener('click', () => {
+            if (currentMatchIndex < searchMatches.length - 1) {
+                jumpToResult(currentMatchIndex + 1);
+            }
+        });
+
+        // Keyboard navigation
+        document.getElementById('search').addEventListener('keydown', function(e) {
+            if (searchMatches.length === 0) return;
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (currentMatchIndex < searchMatches.length - 1) {
+                    jumpToResult(currentMatchIndex + 1);
+                }
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (currentMatchIndex > 0) {
+                    jumpToResult(currentMatchIndex - 1);
+                }
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (currentMatchIndex >= 0) {
+                    jumpToResult(currentMatchIndex);
+                    document.getElementById('search-results').classList.remove('visible');
+                }
+            } else if (e.key === 'Escape') {
+                document.getElementById('search-results').classList.remove('visible');
+            }
+        });
+
+        // Close results when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.search-wrapper')) {
+                document.getElementById('search-results').classList.remove('visible');
+            }
+        });
+
+        // Show results when focusing on search with existing query
+        document.getElementById('search').addEventListener('focus', function() {
+            if (searchMatches.length > 0) {
+                document.getElementById('search-results').classList.add('visible');
+            }
+        });
+
+        // Expand all on double click root
+        svg.selectAll("g.node").filter(d => d.depth === 0)
+            .on("dblclick", () => {
+                function expandAll(d) {
+                    if (d._children) {
+                        d.children = d._children;
+                        d._children = null;
+                    }
+                    if (d.children) d.children.forEach(expandAll);
+                }
+                expandAll(root);
+                update(root);
+            });
+    </script>
+</body>
+</html>
