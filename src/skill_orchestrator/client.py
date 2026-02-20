@@ -1,6 +1,7 @@
 """Claude SDK Client wrapper - maintains session context."""
 
 import asyncio
+import time
 from pathlib import Path
 from typing import Optional, AsyncIterator, Callable
 
@@ -15,6 +16,38 @@ from claude_agent_sdk import (
     ToolUseBlock,
     ToolResultBlock,
 )
+
+
+class _SharedRateLimitState:
+    """Global rate-limit state shared across all SkillClient sessions.
+
+    When any session gets rate-limited, it sets a cooldown that all other
+    sessions respect before making requests, preventing thundering herd.
+    """
+
+    def __init__(self):
+        self._resume_at: float = 0.0
+        self._lock = asyncio.Lock()
+
+    async def wait_if_needed(self, log_fn: Optional[Callable] = None) -> None:
+        """Wait if a global cooldown is active."""
+        now = time.monotonic()
+        if now < self._resume_at:
+            wait_time = self._resume_at - now
+            if log_fn:
+                log_fn(f"Global rate-limit cooldown: waiting {wait_time:.0f}s", "warn")
+            await asyncio.sleep(wait_time)
+
+    async def set_cooldown(self, seconds: float) -> None:
+        """Set a global cooldown period. Only extends, never shortens."""
+        async with self._lock:
+            new_resume = time.monotonic() + seconds
+            if new_resume > self._resume_at:
+                self._resume_at = new_resume
+
+
+# Single shared instance across all SkillClient sessions
+_shared_rate_limit = _SharedRateLimitState()
 
 
 class SkillClient:
@@ -90,6 +123,9 @@ class SkillClient:
         response_text = ""
         max_retries = 5
         for attempt in range(max_retries):
+            # Respect global rate-limit cooldown before sending
+            await _shared_rate_limit.wait_if_needed(self._log)
+
             response_text = ""
             await self.client.query(prompt, session_id=self.session_id)
             try:
@@ -141,7 +177,9 @@ class SkillClient:
             except MessageParseError as e:
                 if "rate_limit_event" in str(e) and attempt < max_retries - 1:
                     wait_time = 60 * (attempt + 1)
-                    self._log(f"Rate limited (attempt {attempt + 1}/{max_retries}). Waiting {wait_time}s...", "warn")
+                    # Set global cooldown so other sessions also back off
+                    await _shared_rate_limit.set_cooldown(wait_time)
+                    self._log(f"Rate limited (attempt {attempt + 1}/{max_retries}). Global cooldown {wait_time}s...", "warn")
                     await asyncio.sleep(wait_time)
                 else:
                     raise
@@ -167,6 +205,9 @@ class SkillClient:
         metrics = {"input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0}
         max_retries = 5
         for attempt in range(max_retries):
+            # Respect global rate-limit cooldown before sending
+            await _shared_rate_limit.wait_if_needed(self._log)
+
             response_text = ""
             metrics = {"input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0}
             await self.client.query(prompt, session_id=self.session_id)
@@ -206,7 +247,9 @@ class SkillClient:
             except MessageParseError as e:
                 if "rate_limit_event" in str(e) and attempt < max_retries - 1:
                     wait_time = 60 * (attempt + 1)
-                    self._log(f"Rate limited (attempt {attempt + 1}/{max_retries}). Waiting {wait_time}s...", "warn")
+                    # Set global cooldown so other sessions also back off
+                    await _shared_rate_limit.set_cooldown(wait_time)
+                    self._log(f"Rate limited (attempt {attempt + 1}/{max_retries}). Global cooldown {wait_time}s...", "warn")
                     await asyncio.sleep(wait_time)
                 else:
                     raise

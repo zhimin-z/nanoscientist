@@ -96,7 +96,7 @@ node_timeout: 7200.0
 # Max concurrent nodes
 # (Number of skill nodes executing simultaneously)
 # Note: Too high may trigger API rate limits
-max_concurrent: 6
+max_concurrent: 2
 
 # =============================================================================
 # Retry Configuration

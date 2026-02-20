@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import random
 import re
 import time
 import traceback
@@ -493,6 +494,10 @@ class SkillOrchestrator:
             self._enqueue_log(message, level, node_id=node_id)
 
         try:
+            # Stagger node startup to avoid thundering herd on the API
+            stagger_delay = random.uniform(1.0, 5.0)
+            self._enqueue_log(f"Staggering start by {stagger_delay:.1f}s", "info", node_id=node_id)
+            await asyncio.sleep(stagger_delay)
 
             # Create an isolated session for this node
             async with SkillClient(
