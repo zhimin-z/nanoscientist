@@ -19,31 +19,16 @@ wheels/
 *.egg
 MANIFEST
 
-# Tool caches
-.pytest_cache/
-.ruff_cache/
-.mypy_cache/
-.coverage
-htmlcov/
-
 # Virtual environments
-venv/
-env/
-ENV/
-.venv/
+.venv
 
 # IDE
 .claude/
 .vscode/
 .omc/
-.idea/
-*.swp
-*.swo
-*~
 
 # Environment variables
 .env
-.env.local
 
 # LaTeX intermediate files
 *.aux

@@ -1,0 +1,99 @@
+{
+  "skills": [
+    {
+      "id": "citation-management",
+      "name": "citation-management",
+      "description": "Comprehensive citation management for academic research. Search Google Scholar and PubMed for papers, extract accurate metadata, validate citations, and generate properly formatted BibTeX entries. Use when finding papers, verifying citation information, converting DOIs to BibTeX, or ensuring reference accuracy in scientific writing."
+    },
+    {
+      "id": "data-visualization",
+      "name": "data-visualization",
+      "description": "Creates effective data visualizations using various libraries and tools, with focus on clarity and insight communication. Trigger keywords: chart, graph, plot, visualization, dashboard, matplotlib, d3, plotly, visualization."
+    },
+    {
+      "id": "generate-image",
+      "name": "generate-image",
+      "description": "Generate or edit images using AI models (FLUX, Gemini). Use for general-purpose image generation including photos, illustrations, artwork, visual assets, concept art, and any image that is not a technical diagram or schematic. For flowcharts, circuits, pathways, and technical diagrams, use the scientific-schematics skill instead."
+    },
+    {
+      "id": "hypothesis-generation",
+      "name": "hypothesis-generation",
+      "description": "Structured hypothesis formulation from observations. Use when you have experimental observations or data and need to formulate testable hypotheses with predictions, propose mechanisms, and design experiments to test them. Follows scientific method framework."
+    },
+    {
+      "id": "latex-posters",
+      "name": "latex-posters",
+      "description": "Create professional research posters in LaTeX using beamerposter, tikzposter, or baposter. Support for conference presentations, academic posters, and scientific communication. Includes layout design, color schemes, multi-column formats, figure integration, and poster-specific best practices for visual communication."
+    },
+    {
+      "id": "literature-review",
+      "name": "literature-review",
+      "description": "Conduct comprehensive, systematic literature reviews using multiple academic databases (PubMed, arXiv, bioRxiv, Semantic Scholar, etc.). Creates professionally formatted markdown documents and PDFs with verified citations in multiple citation styles (APA, Nature, Vancouver, etc.)."
+    },
+    {
+      "id": "paper-2-web",
+      "name": "paper-2-web",
+      "description": "Convert academic papers into promotional and presentation formats including interactive websites (Paper2Web), presentation videos (Paper2Video), and conference posters (Paper2Poster). Use for paper dissemination, conference preparation, creating explorable academic homepages, generating video abstracts, or producing print-ready posters."
+    },
+    {
+      "id": "peer-review",
+      "name": "peer-review",
+      "description": "Structured manuscript/grant review with checklist-based evaluation. Use when writing formal peer reviews with specific criteria methodology assessment, statistical validity, reporting standards compliance (CONSORT/STROBE), and constructive feedback."
+    },
+    {
+      "id": "pptx-posters",
+      "name": "pptx-posters",
+      "description": "Create research posters using HTML/CSS that can be exported to PDF or PPTX. Use ONLY when the user explicitly requests PowerPoint/PPTX poster format. For standard research posters, use latex-posters instead."
+    },
+    {
+      "id": "research-grants",
+      "name": "research-grants",
+      "description": "Write competitive research proposals for NSF, NIH, DOE, DARPA, and Taiwan NSTC. Agency-specific formatting, review criteria, budget preparation, broader impacts, significance statements, innovation narratives, and compliance with submission requirements."
+    },
+    {
+      "id": "research-lookup",
+      "name": "research-lookup",
+      "description": "Look up current research information using Perplexity Sonar Pro Search or Sonar Reasoning Pro models through OpenRouter. Automatically selects the best model based on query complexity. Search academic papers, recent studies, technical documentation, and general research information with citations."
+    },
+    {
+      "id": "scholar-evaluation",
+      "name": "scholar-evaluation",
+      "description": "Systematically evaluate scholarly work using the ScholarEval framework, providing structured assessment across research quality dimensions including problem formulation, methodology, analysis, and writing with quantitative scoring and actionable feedback."
+    },
+    {
+      "id": "scientific-critical-thinking",
+      "name": "scientific-critical-thinking",
+      "description": "Evaluate scientific claims and evidence quality. Use for assessing experimental design validity, identifying biases and confounders, applying evidence grading frameworks (GRADE, Cochrane Risk of Bias), or teaching critical analysis."
+    },
+    {
+      "id": "scientific-schematics",
+      "name": "scientific-schematics",
+      "description": "Create publication-quality scientific diagrams using Nano Banana Pro AI with smart iterative refinement. Specialized in neural network architectures, system diagrams, flowcharts, biological pathways, and complex scientific visualizations."
+    },
+    {
+      "id": "scientific-slides",
+      "name": "scientific-slides",
+      "description": "Build slide decks and presentations for research talks. Use for making PowerPoint slides, conference presentations, seminar talks, research presentations, thesis defense slides, or any scientific talk. Provides slide structure, design templates, timing guidance, and visual validation."
+    },
+    {
+      "id": "scientific-writing",
+      "name": "scientific-writing",
+      "description": "Core skill for deep research and writing. Write scientific manuscripts in full paragraphs (never bullet points). Uses two-stage process with section outlines then flowing prose. IMRAD structure, citations, figures/tables, reporting guidelines (CONSORT/STROBE/PRISMA), for research papers and journal submissions."
+    },
+    {
+      "id": "statistical-analysis",
+      "name": "statistical-analysis",
+      "description": "Statistical analysis toolkit. Hypothesis tests (t-test, ANOVA, chi-square), regression, correlation, Bayesian stats, power analysis, assumption checks, APA reporting, for academic research."
+    },
+    {
+      "id": "tooluniverse",
+      "name": "tooluniverse",
+      "description": "Use this skill when working with scientific research tools and workflows across bioinformatics, cheminformatics, genomics, structural biology, proteomics, and drug discovery. Provides access to 600+ scientific tools including machine learning models, datasets, APIs, and analysis packages."
+    },
+    {
+      "id": "venue-templates",
+      "name": "venue-templates",
+      "description": "Access comprehensive LaTeX templates, formatting requirements, and submission guidelines for major scientific publication venues (Nature, Science, PLOS, IEEE, ACM), academic conferences (NeurIPS, ICML, CVPR, CHI), research posters, and grant proposals (NSF, NIH, DOE, DARPA)."
+    }
+  ]
+}
