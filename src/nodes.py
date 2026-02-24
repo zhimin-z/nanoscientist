@@ -126,16 +126,19 @@ Only plan skills whose required API keys are available. Do not plan skills that 
 ## Budget Strategy Guidelines
 - Budget < $0.10: research-lookup (1 call), then write report (Quick Summary).
 - Budget $0.10-$0.50: research-lookup (2-3 calls on subtopics) + literature-review, then write report (Literature Review).
-- Budget $0.50-$2.00: research-lookup (3-5 calls) + literature-review + hypothesis-generation + scientific-critical-thinking (Research Report).
-- Budget $2.00-$5.00: Multiple research-lookup calls (5-10, each on different subtopics) + literature-review + hypothesis-generation + scientific-critical-thinking + statistical-analysis + scholar-evaluation + peer-review (Full Paper).
-- Budget $5.00+: All of the above PLUS repeated research-lookup on each research question, multiple literature-review passes on subtopics, data-visualization, scientific-slides, and venue-templates. Plan 20+ skill executions minimum. Use the budget to build deep, comprehensive research.
+- Budget $0.50-$2.00: research-lookup (3-5 calls) + literature-review + hypothesis-generation + scientific-critical-thinking. Plan 10-20 steps (Research Report).
+- Budget $2.00-$5.00: Plan 30-50 steps. Multiple research-lookup calls (8-15, each on different subtopics), 3-5 literature-review passes on subtopics, 3-5 github-mining or data collection passes, 4-6 statistical-analysis passes, 3-4 data-visualization passes, hypothesis-generation, scientific-critical-thinking, peer-review, citation-management, venue-templates (Full Paper).
+- Budget $5.00-$10.00: Plan 50-80 steps. All of the above with MORE repetitions. 15-20 research-lookup, 5-8 literature-review, 6-10 data collection, 6-10 statistical-analysis, 5-8 data-visualization. Use the budget to build deep, comprehensive research.
+- Budget $10.00+: Plan 80-150 steps. Exhaustive coverage with repeated deep-dives into every subtopic.
 
 ## Key Planning Rules
-1. For budgets >= $2.00, plan AT LEAST 15 skill steps.
-2. Use research-lookup MULTIPLE TIMES with different queries to gather comprehensive material.
-3. Use literature-review on specific subtopics, not just the broad topic.
-4. Every skill execution builds material and citations for the final report — more executions = better paper.
-5. The decision engine can extend the plan beyond what you specify here, so focus on the most important initial steps.
+1. CRITICAL: Plan enough steps to use at least 70% of the budget. Each step costs ~$0.005, so a $5 budget should have ~40+ planned steps, a $10 budget ~80+ steps.
+2. Use research-lookup MULTIPLE TIMES with different queries — one per subtopic or research question angle.
+3. Use literature-review on specific subtopics, not just the broad topic. Plan separate literature-review steps for each major theme.
+4. Use data-visualization MULTIPLE TIMES — one per research question or figure type.
+5. Use statistical-analysis MULTIPLE TIMES — one per analysis method or hypothesis.
+6. Every skill execution builds material and citations for the final report — more executions = better paper.
+7. The decision engine can extend the plan beyond what you specify here, but a comprehensive initial plan is critical for guiding research direction.
 {quality_guidance}
 
 ## Instructions
@@ -277,10 +280,12 @@ Estimated affordable additional skill calls: {affordable_steps}
 ## Instructions
 Decide the next action. You may:
 1. Execute a planned skill ("execute_skill") — pick from remaining plan
-2. Execute an ADDITIONAL skill ("execute_skill") — if the plan is done but budget allows deeper research, propose a skill to strengthen the paper (e.g., repeat research-lookup with different angles, add peer-review, add scientific-critical-thinking, deepen literature-review on subtopics)
-3. Write the final report ("write_tex") — ONLY when you have enough material AND less than 5 affordable steps remain
+2. Execute an ADDITIONAL skill ("execute_skill") — if the plan is done but budget allows deeper research, propose a skill to strengthen the paper (e.g., repeat research-lookup with different angles, add peer-review, add scientific-critical-thinking, deepen literature-review on subtopics, additional data-visualization or statistical-analysis passes)
+3. Write the final report ("write_tex") — ONLY when BOTH conditions are met:
+   a. You have comprehensive material (20+ citations for Full Paper, figures, tables, all RQs addressed)
+   b. Less than 10 affordable steps remain OR budget utilization exceeds 70%
 
-**Important**: Do NOT write the report early if there is substantial budget remaining. Use the budget to deepen research, gather more citations, and improve paper quality. A Full Paper needs 20+ citations and coverage of all mandatory sections.
+**CRITICAL**: You MUST continue executing skills if budget utilization is below 60%. Each additional skill call deepens the research quality. Propose NEW angles, deeper analysis, additional visualizations, or cross-validation steps. NEVER stop early with substantial budget remaining — the user is paying for thorough research.
 
 Return YAML:
 ```yaml
@@ -323,10 +328,40 @@ reason: <brief reason>
             encoding="utf-8",
         )
 
-        # Budget guard
+        # Budget guard — too low → write
         if shared["budget_remaining"] < BUDGET_RESERVE:
             print("[DecideNext] Budget guard triggered → write_tex")
             return "write_tex"
+
+        # Budget utilization guard — override premature write_tex
+        # If LLM wants to write but we've used less than 60% of total budget,
+        # force another skill execution to deepen the research.
+        if action == "write_tex":
+            total = shared.get("budget_dollars", 1)
+            used_frac = 1 - (shared["budget_remaining"] / total)
+            min_utilization = 0.60
+            if used_frac < min_utilization:
+                # Pick a deepening skill — cycle through useful extensions
+                deepen_cycle = [
+                    "research-lookup", "literature-review",
+                    "statistical-analysis", "data-visualization",
+                    "scientific-critical-thinking", "peer-review",
+                    "hypothesis-generation", "citation-management",
+                ]
+                # Pick one we've used least
+                exec_counts = Counter(h["skill"] for h in shared.get("history", []))
+                # Filter to skills that exist in the skill index
+                valid = [s for s in deepen_cycle if s in shared.get("skill_index", {})]
+                if valid:
+                    best = min(valid, key=lambda s: exec_counts.get(s, 0))
+                    print(f"[DecideNext] Budget utilization {used_frac:.0%} < {min_utilization:.0%} "
+                          f"— overriding write_tex → execute_skill ({best})")
+                    shared["next_skill"] = best
+                    # Update decision log with override
+                    shared["decisions"][-1]["action"] = "execute_skill"
+                    shared["decisions"][-1]["skill"] = best
+                    shared["decisions"][-1]["reason"] += f" [OVERRIDDEN: budget {used_frac:.0%} used]"
+                    return "execute_skill"
 
         if action == "execute_skill":
             shared["next_skill"] = decision.get("skill", "")
@@ -415,18 +450,20 @@ Place code between these markers. Supported: python, bash.
 
 %%BEGIN CODE:python%%
 # Your Python code here
-# Save data to: {prep_res['task_dir']}/data/
-# Save figures to: {prep_res['task_dir']}/figures/
+# Save data to: data/  (relative path)
+# Save figures to: figures/  (relative path)
 %%END CODE%%
 
 %%BEGIN CODE:bash%%
-# Your bash commands here
+# Your bash commands here (use relative paths)
 %%END CODE%%
 
 ### Code Guidelines
-- Save data files (CSV, JSON) to `{prep_res['task_dir']}/data/`
-- Save figure files (PNG, PDF) to `{prep_res['task_dir']}/figures/`
-- For figures: use matplotlib with `plt.savefig()` — do NOT use `plt.show()`
+- Your working directory is already set to the task directory. Use RELATIVE paths only.
+- Save data files (CSV, JSON) to `data/` (relative path)
+- Save figure files (PNG, PDF) to `figures/` (relative path)
+- Do NOT use absolute paths or repeat the task directory path in your code.
+- For figures: use matplotlib with `plt.savefig('figures/filename.png')` — do NOT use `plt.show()`
 - Use descriptive filenames relating to the research topic
 - Available libraries: matplotlib, pandas, numpy, seaborn, requests, scipy
 - API tokens available as env vars: GITHUB_TOKEN, OPENROUTER_API_KEY, PERPLEXITY_API_KEY
@@ -490,7 +527,7 @@ Begin your work now."""
         code_outputs = []
 
         if prep_res["can_execute"] and prep_res["task_dir"]:
-            task_dir = Path(prep_res["task_dir"])
+            task_dir = Path(prep_res["task_dir"]).resolve()
 
             # Ensure subdirs exist
             (task_dir / "data").mkdir(exist_ok=True)
@@ -611,6 +648,310 @@ Begin your work now."""
 
 
 # ===================================================================
+# 3b. GenerateFigures — runs after skills, before WriteTeX
+# ===================================================================
+class GenerateFigures(Node):
+    """Generate figures and tables from collected artifacts and data."""
+
+    def prep(self, shared):
+        out_dir = Path(shared.get("output_path", "")).resolve()
+
+        # Check if figures already exist
+        figures_dir = out_dir / "figures"
+        existing_figures = []
+        if figures_dir.is_dir():
+            existing_figures = [f.name for f in figures_dir.iterdir()
+                                if f.is_file() and f.suffix.lower() in (".png", ".pdf", ".jpg", ".jpeg")]
+
+        # Check for data files
+        data_dir = out_dir / "data"
+        data_files = []
+        if data_dir.is_dir():
+            data_files = [f.name for f in data_dir.iterdir() if f.is_file()]
+
+        # Collect artifact summaries for context
+        artifact_summaries = []
+        for name, content in shared.get("artifacts", {}).items():
+            artifact_summaries.append(f"### {name}\n{content[:500]}")
+
+        return {
+            "topic": shared["topic"],
+            "out_dir": str(out_dir),
+            "existing_figures": existing_figures,
+            "data_files": data_files,
+            "artifact_summaries": "\n\n".join(artifact_summaries),
+            "report_type": shared.get("report_type", "Literature Review"),
+            "budget_remaining": shared.get("budget_remaining", 0),
+        }
+
+    def exec(self, prep_res):
+        # Skip if budget is very low or figures already exist
+        if prep_res["budget_remaining"] < BUDGET_RESERVE * 2:
+            return None, {"input_tokens": 0, "output_tokens": 0, "cost": 0}
+        if len(prep_res["existing_figures"]) >= 3:
+            return None, {"input_tokens": 0, "output_tokens": 0, "cost": 0}
+
+        data_context = ""
+        if prep_res["data_files"]:
+            data_context = f"""
+## Available Data Files (in data/ directory)
+{chr(10).join(f'- {f}' for f in prep_res['data_files'])}
+
+You can load these files with pandas to create data-driven figures:
+```python
+import pandas as pd
+df = pd.read_csv('data/filename.csv')  # or json.load(open('data/filename.json'))
+```
+"""
+
+        prompt = f"""You are a scientific visualization specialist. Generate Python code that creates publication-quality figures for a research paper.
+
+## Research Topic
+{prep_res["topic"]}
+
+## Report Type: {prep_res["report_type"]}
+
+## Research Content Summary
+{prep_res["artifact_summaries"][:4000]}
+{data_context}
+## Requirements
+You MUST generate exactly 3 Python scripts, each creating one figure. Output them as separate code blocks.
+
+### Figure 1: Overview/Architecture diagram
+Create a conceptual diagram, system overview, or taxonomy visualization using matplotlib.
+Use boxes, arrows, and annotations to illustrate the key concepts or framework.
+
+### Figure 2: Quantitative comparison or trends
+Create a bar chart, line plot, or heatmap showing quantitative findings from the research.
+If data files exist, load and visualize them. Otherwise, extract numerical data from the artifacts.
+
+### Figure 3: Analysis/Distribution visualization
+Create a visualization showing distributions, correlations, or multi-dimensional comparisons.
+Options: grouped bar chart, radar/spider chart, scatter plot, violin plot, or bubble chart.
+
+## Code Rules
+- Each script is INDEPENDENT (include all imports in each)
+- Use matplotlib and seaborn with a professional style: `plt.style.use('seaborn-v0_8-paper')` or `sns.set_theme(style='whitegrid')`
+- Use a consistent color palette across all figures: `sns.color_palette('Set2')` or similar
+- Set figure size to (10, 6) or (8, 6) for readability
+- Use descriptive axis labels, titles, and legends with fontsize >= 12
+- Save to `figures/` using RELATIVE paths only
+- Use `plt.tight_layout()` before saving
+- Use `plt.savefig('figures/filename.png', dpi=300, bbox_inches='tight')`
+- Do NOT call `plt.show()`
+- Print a description of what the figure shows to stdout
+
+## Output Format
+Return exactly 3 code blocks:
+
+%%BEGIN CODE:python%%
+# Figure 1: <description>
+<complete Python script>
+%%END CODE%%
+
+%%BEGIN CODE:python%%
+# Figure 2: <description>
+<complete Python script>
+%%END CODE%%
+
+%%BEGIN CODE:python%%
+# Figure 3: <description>
+<complete Python script>
+%%END CODE%%
+
+Generate the code now. Every script MUST produce a .png file in figures/."""
+        text, usage = call_llm(prompt)
+        return text, usage
+
+    def post(self, shared, prep_res, exec_res):
+        text, usage = exec_res
+
+        if text is None:
+            print("[GenerateFigures] Skipped (budget low or figures exist)")
+            return "write"
+
+        track_cost(shared, "generate_figures", usage)
+
+        out_dir = Path(prep_res["out_dir"])
+        (out_dir / "figures").mkdir(exist_ok=True)
+        (out_dir / "scripts").mkdir(exist_ok=True)
+
+        # Extract and execute code blocks
+        code_blocks = re.findall(
+            r"%%BEGIN CODE:(\w+)%%(.*?)%%END CODE%%", text, re.DOTALL
+        )
+
+        figures_generated = 0
+        for i, (lang, code) in enumerate(code_blocks):
+            code = code.strip()
+            if not code:
+                continue
+
+            script_path = out_dir / "scripts" / f"fig_{i:02d}.py"
+            script_path.write_text(code, encoding="utf-8")
+
+            cmd = ["python", str(script_path)]
+            try:
+                result = subprocess.run(
+                    cmd,
+                    cwd=str(out_dir),
+                    capture_output=True,
+                    text=True,
+                    errors="replace",
+                    timeout=120,
+                    env={**os.environ},
+                )
+                if result.returncode == 0:
+                    print(f"[GenerateFigures] Script fig_{i:02d}.py succeeded")
+                    figures_generated += 1
+                else:
+                    print(f"[GenerateFigures] Script fig_{i:02d}.py failed (exit={result.returncode}): {result.stderr[:200]}")
+            except subprocess.TimeoutExpired:
+                print(f"[GenerateFigures] Script fig_{i:02d}.py timed out")
+            except Exception as e:
+                print(f"[GenerateFigures] Script fig_{i:02d}.py error: {e}")
+
+        # Scan for generated figures
+        figures_dir = out_dir / "figures"
+        all_figures = []
+        if figures_dir.is_dir():
+            all_figures = [f.name for f in sorted(figures_dir.iterdir())
+                          if f.is_file() and f.suffix.lower() in (".png", ".pdf", ".jpg", ".jpeg")]
+
+        print(f"[GenerateFigures] Generated {figures_generated} scripts, {len(all_figures)} figure files in figures/")
+        print(f"[GenerateFigures] Budget remaining: ${shared['budget_remaining']:.4f}")
+        return "write"
+
+
+# ===================================================================
+# 3c. GenerateTables — produce LaTeX tables from artifacts/data
+# ===================================================================
+class GenerateTables(Node):
+    """Generate LaTeX tables summarizing research findings."""
+
+    def prep(self, shared):
+        out_dir = Path(shared.get("output_path", "")).resolve()
+
+        # Collect data files for context
+        data_dir = out_dir / "data"
+        data_files = []
+        data_previews = {}
+        if data_dir.is_dir():
+            for f in sorted(data_dir.iterdir()):
+                if f.is_file() and f.suffix.lower() in (".csv", ".json", ".tsv"):
+                    data_files.append(f.name)
+                    # Read first 2KB of each data file for context
+                    try:
+                        preview = f.read_text(encoding="utf-8", errors="replace")[:2000]
+                        data_previews[f.name] = preview
+                    except Exception:
+                        pass
+
+        # Collect artifact summaries
+        artifact_summaries = []
+        for name, content in shared.get("artifacts", {}).items():
+            artifact_summaries.append(f"### {name}\n{content[:600]}")
+
+        return {
+            "topic": shared["topic"],
+            "out_dir": str(out_dir),
+            "data_files": data_files,
+            "data_previews": data_previews,
+            "artifact_summaries": "\n\n".join(artifact_summaries),
+            "report_type": shared.get("report_type", "Literature Review"),
+            "budget_remaining": shared.get("budget_remaining", 0),
+        }
+
+    def exec(self, prep_res):
+        # Skip if budget is very low
+        if prep_res["budget_remaining"] < BUDGET_RESERVE * 2:
+            return None, {"input_tokens": 0, "output_tokens": 0, "cost": 0}
+
+        data_context = ""
+        if prep_res["data_previews"]:
+            previews = []
+            for fname, preview in prep_res["data_previews"].items():
+                previews.append(f"### {fname}\n```\n{preview[:1000]}\n```")
+            data_context = f"""
+## Available Data Files (with previews)
+{chr(10).join(previews)}
+"""
+
+        prompt = f"""You are a scientific table specialist. Generate LaTeX tables that summarize research findings for a paper.
+
+## Research Topic
+{prep_res["topic"]}
+
+## Report Type: {prep_res["report_type"]}
+
+## Research Artifacts
+{prep_res["artifact_summaries"][:4000]}
+{data_context}
+## Requirements
+Generate 2-3 LaTeX tables that present key findings. Tables should use the `booktabs` package.
+
+### Table types to consider:
+1. **Comparison table**: Compare methods, tools, frameworks, or approaches across multiple dimensions
+2. **Results/Statistics table**: Quantitative metrics, counts, percentages from the research
+3. **Summary/Taxonomy table**: Categorize key concepts, features, or findings
+
+## LaTeX Table Rules
+- Use `booktabs` style: `\\toprule`, `\\midrule`, `\\bottomrule` (no vertical lines)
+- Include `\\caption{{...}}` and `\\label{{tab:...}}`
+- Wrap in `\\begin{{table}}[htbp]` environment
+- Keep tables readable: max 6-7 columns
+- Use `\\centering` inside the table environment
+- Use real data from the artifacts — do NOT fabricate numbers
+
+## Output Format
+Return each table between markers:
+
+%%BEGIN TABLE%%
+\\begin{{table}}[htbp]
+\\centering
+\\caption{{Descriptive caption here.}}
+\\label{{tab:label-here}}
+\\begin{{tabular}}{{lcc}}
+\\toprule
+Header 1 & Header 2 & Header 3 \\\\
+\\midrule
+Data & Data & Data \\\\
+\\bottomrule
+\\end{{tabular}}
+\\end{{table}}
+%%END TABLE%%
+
+Generate the tables now. Each table MUST be wrapped in %%BEGIN TABLE%% / %%END TABLE%% markers."""
+        text, usage = call_llm(prompt)
+        return text, usage
+
+    def post(self, shared, prep_res, exec_res):
+        text, usage = exec_res
+
+        if text is None:
+            print("[GenerateTables] Skipped (budget low)")
+            return "write"
+
+        track_cost(shared, "generate_tables", usage)
+
+        # Extract tables from markers
+        tables = re.findall(r"%%BEGIN TABLE%%(.*?)%%END TABLE%%", text, re.DOTALL)
+        tables = [t.strip() for t in tables if t.strip()]
+
+        if not tables:
+            # Fallback: try to extract \begin{table} blocks directly
+            tables = re.findall(
+                r"(\\begin\{table\}.*?\\end\{table\})", text, re.DOTALL
+            )
+            tables = [t.strip() for t in tables if t.strip()]
+
+        shared["latex_tables"] = tables
+        print(f"[GenerateTables] Generated {len(tables)} LaTeX tables")
+        print(f"[GenerateTables] Budget remaining: ${shared['budget_remaining']:.4f}")
+        return "write"
+
+
+# ===================================================================
 # 4. WriteTeX
 # ===================================================================
 class WriteTeX(Node):
@@ -686,6 +1027,7 @@ class WriteTeX(Node):
             "writing_guide": writing_guide,
             "figure_files": figure_files,
             "data_files": data_files,
+            "latex_tables": shared.get("latex_tables", []),
         }
 
     def exec(self, prep_res):
@@ -748,6 +1090,19 @@ The following data files were collected during research. Reference their content
 {data_list}
 """
 
+        # Build pre-generated tables block
+        tables_block = ""
+        if prep_res.get("latex_tables"):
+            tables_joined = "\n\n".join(prep_res["latex_tables"])
+            tables_block = f"""
+## Pre-Generated Tables
+The following LaTeX tables have been generated from the research data. You MUST include them
+in appropriate sections of the paper (typically Results or Background). Reference each table
+in the text as Table~\\ref{{tab:label}}.
+
+{tables_joined}
+"""
+
         prompt = f"""You are writing a scientific {report_type.lower()} as compilable LaTeX.
 {quality_block}
 ## Research Topic
@@ -758,7 +1113,7 @@ The following data files were collected during research. Reference their content
 
 ## Available BibTeX cite keys
 {cite_list}
-{figure_block}{data_block}
+{figure_block}{data_block}{tables_block}
 ## Report Type: {report_type}
 ## Sections to Write: {', '.join(sections)}
 
