@@ -13,7 +13,7 @@ import sys
 # Resolve project paths
 SKILLS_DIR = "skills"
 
-from src.utils import load_skill_index
+from src.utils import load_skill_index, load_quality_standard
 from src.flow import create_scientist_flow
 
 
@@ -34,6 +34,11 @@ def run(topic: str, budget: float, output_dir: str):
     skill_index = load_skill_index(str(SKILLS_DIR))
     print(f"Loaded {len(skill_index)} skills from skills.json")
 
+    # Load paper quality standard (guides all writing nodes)
+    quality_standard = load_quality_standard("docs")
+    if quality_standard:
+        print(f"Loaded paper quality standard from docs/PAPER_QUALITY_STANDARD.md")
+
     # Initialize shared store
     shared = {
         "topic": topic,
@@ -43,6 +48,7 @@ def run(topic: str, budget: float, output_dir: str):
         "skill_index": skill_index,       # lightweight: {name: description}
         "skills_dir": str(SKILLS_DIR),    # path for lazy-loading SKILL.md
         "output_dir": output_dir,
+        "quality_standard": quality_standard,
     }
 
     # Create and run flow

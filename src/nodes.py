@@ -11,6 +11,7 @@ from .utils import (
     call_llm,
     format_skill_index,
     load_skill_content,
+    load_quality_standard,
     parse_yaml_response,
     extract_bibtex,
     dedup_bibtex,
@@ -68,9 +69,32 @@ class BudgetPlanner(Node):
             "topic": shared["topic"],
             "budget": shared["budget_dollars"],
             "skills": format_skill_index(shared["skill_index"]),
+            "quality_standard": shared.get("quality_standard", ""),
         }
 
     def exec(self, prep_res):
+        # Extract adaptive structure section from quality standard if available
+        quality_guidance = ""
+        qs = prep_res["quality_standard"]
+        if qs:
+            # Pull Section 2.3 (adaptive structure) and Section 4 (citation quality)
+            import re as _re
+            adaptive = _re.search(
+                r"### 2\.3 Adaptive Structure by Report Type.*?(?=\n## |\n### [^2]|\Z)",
+                qs, _re.DOTALL,
+            )
+            citation = _re.search(
+                r"## 4\. Citation Quality.*?(?=\n## [^4]|\Z)",
+                qs, _re.DOTALL,
+            )
+            parts = []
+            if adaptive:
+                parts.append(adaptive.group(0).strip())
+            if citation:
+                parts.append(citation.group(0).strip())
+            if parts:
+                quality_guidance = "\n\n## Paper Quality Standard (excerpt)\n" + "\n\n".join(parts)
+
         prompt = f"""You are a research planning assistant. Given a research topic and a dollar budget for LLM inference, produce an ordered plan of research skills to execute.
 
 ## Research Topic
@@ -89,18 +113,21 @@ Always reserve $0.03 for the final report + compilation.
 {prep_res["skills"]}
 
 ## Budget Strategy Guidelines
-- Budget < $0.10: Only use research-lookup for a quick search, then write report.
-- Budget $0.10-$0.50: literature-review + write report.
-- Budget $0.50-$2.00: literature-review + hypothesis-generation + scientific-critical-thinking.
-- Budget $2.00-$5.00: Add statistical-analysis, scholar-evaluation, peer-review.
+- Budget < $0.10: Only use research-lookup for a quick search, then write report (Quick Summary: Title, Abstract, Intro, Background, Conclusion, References).
+- Budget $0.10-$0.50: literature-review + write report (Literature Review: all sections except Methods/Results).
+- Budget $0.50-$2.00: literature-review + hypothesis-generation + scientific-critical-thinking (Research Report: all mandatory sections).
+- Budget $2.00-$5.00: Add statistical-analysis, scholar-evaluation, peer-review (Full Paper with figures, limitations, appendix).
 - Budget $5.00+: Full pipeline with multiple iterations and venue formatting.
+{quality_guidance}
 
 ## Instructions
 Produce a YAML plan. Each step has: step number, skill name, and a short reason.
 Only include skills that fit within the budget after reserving $0.03 for the report.
+Plan should produce enough material for the report type matching this budget tier.
 
 ```yaml
 domain: <one-line topic classification>
+report_type: <Quick Summary | Literature Review | Research Report | Full Paper>
 plan:
   - step: 1
     skill: <skill-name>
@@ -119,6 +146,7 @@ plan:
         parsed = parse_yaml_response(text)
         shared["plan"] = parsed.get("plan", [])
         shared["domain"] = parsed.get("domain", "general")
+        shared["report_type"] = parsed.get("report_type", "Literature Review")
         shared["budget_remaining"] = shared["budget_dollars"] - usage["cost"]
         shared["artifacts"] = {}
         shared["bibtex_entries"] = []
@@ -126,6 +154,7 @@ plan:
         shared["fix_attempts"] = 0
 
         print(f"[BudgetPlanner] Domain: {shared['domain']}")
+        print(f"[BudgetPlanner] Report type: {shared['report_type']}")
         print(f"[BudgetPlanner] Plan: {len(shared['plan'])} steps")
         for s in shared["plan"]:
             print(f"  {s['step']}. {s['skill']} — {s.get('reason', '')}")
@@ -266,9 +295,18 @@ Follow these instructions to produce your deliverable:
 {prep_res["skill_content"]}
 ---
 
+## Citation Quality Requirements
+- Include references to real, well-known papers in the field.
+- Aim for breadth: cite multiple research groups, not just one lab.
+- Include foundational/seminal papers and recent work (last 5 years when possible).
+- Every claim or finding you mention should be backed by a citation.
+
 ## Output Requirements
 1. Produce the skill's deliverable as detailed text.
-2. At the END of your response, include a ```bibtex block with BibTeX entries for any papers or sources you reference. Use realistic cite keys (e.g., author2024keyword). If no references, omit the bibtex block.
+2. At the END of your response, include a ```bibtex block with BibTeX entries for ALL papers you reference.
+3. Each BibTeX entry MUST have: author, title, year, and venue (journal or booktitle).
+4. Use realistic cite keys following the pattern: author2024keyword (e.g., smith2023attention).
+5. If no references, omit the bibtex block.
 
 Begin your work now."""
         text, usage = call_llm(prompt)
@@ -315,12 +353,40 @@ class WriteTeX(Node):
             if m:
                 cite_keys.append(m.group(1).strip())
 
-        # Determine which sections have content
+        # Determine which sections have content based on report type
+        report_type = shared.get("report_type", "Literature Review")
         has_methods = any(
             k in shared.get("artifacts", {})
             for k in ("statistical-analysis", "method-implementation", "experimental-evaluation")
         )
         has_results = has_methods  # results typically accompany methods
+
+        # Extract writing guidelines from quality standard
+        writing_guide = ""
+        qs = shared.get("quality_standard", "")
+        if qs:
+            # Pull sections 2.1, 3, and 6 (structure, writing rules, checklist)
+            section_req = re.search(
+                r"### 2\.1 Mandatory Sections.*?(?=\n### 2\.2 |\Z)",
+                qs, re.DOTALL,
+            )
+            writing_rules = re.search(
+                r"## 3\. Writing Quality Rules.*?(?=\n## 4\.|\Z)",
+                qs, re.DOTALL,
+            )
+            checklist = re.search(
+                r"## 6\. Self-Assessment Checklist.*?(?=\n## Sources|\n---|\Z)",
+                qs, re.DOTALL,
+            )
+            parts = []
+            if section_req:
+                parts.append(section_req.group(0).strip())
+            if writing_rules:
+                parts.append(writing_rules.group(0).strip())
+            if checklist:
+                parts.append(checklist.group(0).strip())
+            if parts:
+                writing_guide = "\n\n".join(parts)
 
         return {
             "topic": shared["topic"],
@@ -328,6 +394,8 @@ class WriteTeX(Node):
             "cite_keys": cite_keys,
             "has_methods": has_methods,
             "has_results": has_results,
+            "report_type": report_type,
+            "writing_guide": writing_guide,
         }
 
     def exec(self, prep_res):
@@ -336,17 +404,31 @@ class WriteTeX(Node):
         for name, content in prep_res["artifacts"].items():
             artifact_text += f"\n\n### Artifact: {name}\n{content}"
 
+        # Determine sections based on report type
+        report_type = prep_res["report_type"]
         sections = ["abstract", "introduction", "background"]
-        if prep_res["has_methods"]:
+        if report_type in ("Research Report", "Full Paper") and prep_res["has_methods"]:
             sections.append("methods")
-        if prep_res["has_results"]:
+        if report_type in ("Research Report", "Full Paper") and prep_res["has_results"]:
             sections.append("results")
         sections.extend(["discussion", "conclusion"])
+        if report_type == "Full Paper":
+            sections.append("limitations")
 
         cite_list = ", ".join(prep_res["cite_keys"]) if prep_res["cite_keys"] else "No citations available."
 
-        prompt = f"""You are writing a scientific research report as compilable LaTeX.
+        # Build quality guidance block
+        quality_block = ""
+        if prep_res["writing_guide"]:
+            quality_block = f"""
+## Paper Quality Standard
+You MUST follow these quality standards when writing. This is non-negotiable.
 
+{prep_res["writing_guide"]}
+"""
+
+        prompt = f"""You are writing a scientific {report_type.lower()} as compilable LaTeX.
+{quality_block}
 ## Research Topic
 {prep_res["topic"]}
 
@@ -356,10 +438,25 @@ class WriteTeX(Node):
 ## Available BibTeX cite keys
 {cite_list}
 
-## Sections to Write
-{', '.join(sections)}
+## Report Type: {report_type}
+## Sections to Write: {', '.join(sections)}
 
-## CRITICAL RULES
+## STRUCTURAL RULES
+1. **Title**: Specific, descriptive, under 15 words. Captures the central contribution.
+2. **Abstract**: 150-250 words, self-contained, follows Context-Content-Conclusion structure. States problem, approach, findings, significance.
+3. **Introduction**: Progress from broad context to specific gap. End with clear contribution statement.
+4. **Background/Related Work**: Synthesize prior work by theme, not just list papers. Identify what is missing.
+5. **Discussion**: Interpret results, compare with prior work, acknowledge limitations honestly.
+6. **Conclusion**: 1-2 paragraphs max. State how work advances the field. Do NOT repeat the abstract.
+
+## WRITING RULES
+- Every paragraph follows Context-Content-Conclusion: first sentence sets context, body presents content, last sentence gives takeaway.
+- Active voice preferred: "We propose X" not "X is proposed."
+- No unsupported claims — every assertion needs \\cite{{key}} or evidence.
+- Formal academic tone. No colloquialisms, contractions, or casual phrasing.
+- Technical terms defined on first use.
+
+## LATEX RULES
 1. Write ONLY the LaTeX body content for each section.
 2. Use \\cite{{key}} for citations (only keys listed above).
 3. Do NOT include \\documentclass, \\usepackage, \\begin{{document}}, or \\end{{document}}.
@@ -372,24 +469,24 @@ class WriteTeX(Node):
 Return your content between markers like this:
 
 %%BEGIN TITLE%%
-<the paper title>
+<the paper title — specific, under 15 words>
 %%END TITLE%%
 
 %%BEGIN ABSTRACT%%
-<abstract text — no \\begin{{abstract}} tags>
+<abstract text — 150-250 words, C-C-C structure, no \\begin{{abstract}} tags>
 %%END ABSTRACT%%
 
 %%BEGIN BODY%%
 \\section{{Introduction}}
-<introduction text>
+<introduction: broad context → specific gap → contribution statement>
 
 \\section{{Background}}
-<background text>
+<background: synthesize prior work by theme, cite extensively>
 
 ... (include only sections listed above)
 
 \\section{{Conclusion}}
-<conclusion text>
+<conclusion: concise synthesis, how this advances the field>
 %%END BODY%%
 
 Write the report now."""

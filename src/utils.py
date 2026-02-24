@@ -140,6 +140,17 @@ def dedup_bibtex(entries: list[str]) -> str:
     return "\n\n".join(seen.values()) + "\n" if seen else ""
 
 
+def load_quality_standard(docs_dir: str = "docs") -> str:
+    """Load the paper quality standard from docs/PAPER_QUALITY_STANDARD.md.
+
+    Returns the full text, which nodes can excerpt as needed for prompts.
+    """
+    std_path = Path(docs_dir) / "PAPER_QUALITY_STANDARD.md"
+    if not std_path.exists():
+        return ""
+    return std_path.read_text(encoding="utf-8")
+
+
 def track_cost(shared: dict, step: str, usage: dict):
     """Append cost to shared ledger and decrement remaining budget."""
     shared.setdefault("cost_log", []).append({"step": step, **usage})
