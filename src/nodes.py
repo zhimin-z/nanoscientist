@@ -10,6 +10,7 @@ from pocketflow import Node
 from .utils import (
     call_llm,
     format_skill_index,
+    format_available_keys,
     load_skill_content,
     load_quality_standard,
     parse_yaml_response,
@@ -70,6 +71,7 @@ class BudgetPlanner(Node):
             "budget": shared["budget_dollars"],
             "skills": format_skill_index(shared["skill_index"]),
             "quality_standard": shared.get("quality_standard", ""),
+            "api_keys": format_available_keys(shared.get("api_keys", {})),
         }
 
     def exec(self, prep_res):
@@ -104,20 +106,33 @@ class BudgetPlanner(Node):
 ${prep_res["budget"]:.2f} USD
 
 ## Cost Model
-Each skill execution costs roughly $0.01 (15K input + 5K output tokens).
-Each planning/decision step costs roughly $0.002.
-The final LaTeX report generation costs roughly $0.015.
+Each skill execution costs roughly $0.003-$0.005.
+Each planning/decision step costs roughly $0.001.
+The final LaTeX report generation costs roughly $0.01.
 Always reserve $0.03 for the final report + compilation.
+IMPORTANT: Plan MANY steps to use the budget effectively. A $1 budget supports ~200 skill calls. A $20 budget supports ~4000 skill calls.
+
+## Available API Keys
+{prep_res["api_keys"]}
+
+Only plan skills whose required API keys are available. Do not plan skills that depend on missing keys.
 
 ## Available Skills
 {prep_res["skills"]}
 
 ## Budget Strategy Guidelines
-- Budget < $0.10: Only use research-lookup for a quick search, then write report (Quick Summary: Title, Abstract, Intro, Background, Conclusion, References).
-- Budget $0.10-$0.50: literature-review + write report (Literature Review: all sections except Methods/Results).
-- Budget $0.50-$2.00: literature-review + hypothesis-generation + scientific-critical-thinking (Research Report: all mandatory sections).
-- Budget $2.00-$5.00: Add statistical-analysis, scholar-evaluation, peer-review (Full Paper with figures, limitations, appendix).
-- Budget $5.00+: Full pipeline with multiple iterations and venue formatting.
+- Budget < $0.10: research-lookup (1 call), then write report (Quick Summary).
+- Budget $0.10-$0.50: research-lookup (2-3 calls on subtopics) + literature-review, then write report (Literature Review).
+- Budget $0.50-$2.00: research-lookup (3-5 calls) + literature-review + hypothesis-generation + scientific-critical-thinking (Research Report).
+- Budget $2.00-$5.00: Multiple research-lookup calls (5-10, each on different subtopics) + literature-review + hypothesis-generation + scientific-critical-thinking + statistical-analysis + scholar-evaluation + peer-review (Full Paper).
+- Budget $5.00+: All of the above PLUS repeated research-lookup on each research question, multiple literature-review passes on subtopics, data-visualization, scientific-slides, and venue-templates. Plan 20+ skill executions minimum. Use the budget to build deep, comprehensive research.
+
+## Key Planning Rules
+1. For budgets >= $2.00, plan AT LEAST 15 skill steps.
+2. Use research-lookup MULTIPLE TIMES with different queries to gather comprehensive material.
+3. Use literature-review on specific subtopics, not just the broad topic.
+4. Every skill execution builds material and citations for the final report — more executions = better paper.
+5. The decision engine can extend the plan beyond what you specify here, so focus on the most important initial steps.
 {quality_guidance}
 
 ## Instructions
@@ -187,6 +202,7 @@ class DecideNext(Node):
             "history": history_text,
             "budget_remaining": shared.get("budget_remaining", 0),
             "artifact_keys": list(shared.get("artifacts", {}).keys()),
+            "available_skills": format_skill_index(shared["skill_index"]),
         }
 
     def exec(self, prep_res):
@@ -194,14 +210,15 @@ class DecideNext(Node):
         if prep_res["budget_remaining"] < BUDGET_RESERVE:
             return {"action": "write_tex", "reason": "budget exhausted"}, {"input_tokens": 0, "output_tokens": 0, "cost": 0}
 
-        # Force write_tex if no remaining plan steps
-        if not prep_res["remaining_plan"]:
-            return {"action": "write_tex", "reason": "plan complete"}, {"input_tokens": 0, "output_tokens": 0, "cost": 0}
-
         remaining_yaml = "\n".join(
             f"  - {s['skill']}: {s.get('reason', '')}"
             for s in prep_res["remaining_plan"]
-        )
+        ) if prep_res["remaining_plan"] else "All planned steps completed."
+
+        # Calculate how many more skill calls the budget can support
+        cost_per_skill = 0.005  # conservative estimate
+        usable_budget = prep_res["budget_remaining"] - BUDGET_RESERVE
+        affordable_steps = max(0, int(usable_budget / cost_per_skill))
 
         prompt = f"""You are the decision engine of an autonomous research agent.
 
@@ -216,19 +233,26 @@ class DecideNext(Node):
 
 ## Budget Remaining
 ${prep_res["budget_remaining"]:.4f} (reserve $0.03 for final report)
+Estimated affordable additional skill calls: {affordable_steps}
 
 ## Artifacts Collected
 {', '.join(prep_res["artifact_keys"]) if prep_res["artifact_keys"] else 'None yet.'}
 
+## Available Skills (for extending the plan)
+{prep_res["available_skills"]}
+
 ## Instructions
 Decide the next action. You may:
-1. Execute the next planned skill ("execute_skill")
-2. Skip to writing the final report ("write_tex") if you have enough material or budget is low
+1. Execute a planned skill ("execute_skill") — pick from remaining plan
+2. Execute an ADDITIONAL skill ("execute_skill") — if the plan is done but budget allows deeper research, propose a skill to strengthen the paper (e.g., repeat research-lookup with different angles, add peer-review, add scientific-critical-thinking, deepen literature-review on subtopics)
+3. Write the final report ("write_tex") — ONLY when you have enough material AND less than 5 affordable steps remain
+
+**Important**: Do NOT write the report early if there is substantial budget remaining. Use the budget to deepen research, gather more citations, and improve paper quality. A Full Paper needs 20+ citations and coverage of all mandatory sections.
 
 Return YAML:
 ```yaml
 action: execute_skill OR write_tex
-skill: <skill-name if execute_skill, omit if write_tex>
+skill: <skill-name>
 reason: <brief reason>
 ```"""
         text, usage = call_llm(prompt)
@@ -300,13 +324,27 @@ Follow these instructions to produce your deliverable:
 - Aim for breadth: cite multiple research groups, not just one lab.
 - Include foundational/seminal papers and recent work (last 5 years when possible).
 - Every claim or finding you mention should be backed by a citation.
+- Target at least 5-10 references per skill execution.
 
-## Output Requirements
+## Output Format
 1. Produce the skill's deliverable as detailed text.
-2. At the END of your response, include a ```bibtex block with BibTeX entries for ALL papers you reference.
+2. At the VERY END of your response, you MUST include a BibTeX section between markers:
+
+%%BEGIN BIBTEX%%
+@article{{authorYYYYkeyword,
+  author = {{Last, First and Last, First}},
+  title = {{Full Paper Title}},
+  journal = {{Journal Name}},
+  year = {{YYYY}},
+  volume = {{N}},
+  pages = {{1--10}}
+}}
+%%END BIBTEX%%
+
 3. Each BibTeX entry MUST have: author, title, year, and venue (journal or booktitle).
-4. Use realistic cite keys following the pattern: author2024keyword (e.g., smith2023attention).
-5. If no references, omit the bibtex block.
+4. Use realistic cite keys: author2024keyword (e.g., smith2023attention).
+5. Include one entry for EVERY paper you reference in your text.
+6. This section is MANDATORY — do not skip it.
 
 Begin your work now."""
         text, usage = call_llm(prompt)
@@ -317,8 +355,17 @@ Begin your work now."""
         skill_name = prep_res["skill_name"]
         track_cost(shared, f"execute_skill:{skill_name}", usage)
 
-        # Split main content from bibtex
-        main_content, bib_entries = extract_bibtex(text)
+        # Try %%BEGIN BIBTEX%% markers first (preferred), then fallback to extract_bibtex
+        bibtex_match = re.search(r"%%BEGIN BIBTEX%%(.*?)%%END BIBTEX%%", text, re.DOTALL)
+        if bibtex_match:
+            main_content = text[:bibtex_match.start()].strip()
+            bib_block = bibtex_match.group(1).strip()
+            bib_entries = re.findall(r"(@\w+\{[^@]+)", bib_block, re.DOTALL)
+            bib_entries = [e.strip() for e in bib_entries if e.strip()]
+        else:
+            # Fallback: try fenced code blocks and raw entries
+            main_content, bib_entries = extract_bibtex(text)
+
         shared["artifacts"][skill_name] = main_content
         shared["bibtex_entries"].extend(bib_entries)
 
@@ -489,6 +536,24 @@ Return your content between markers like this:
 <conclusion: concise synthesis, how this advances the field>
 %%END BODY%%
 
+%%BEGIN BIBTEX%%
+@article{{citekey1,
+  author = {{Last, First}},
+  title = {{Paper Title}},
+  journal = {{Journal Name}},
+  year = {{2024}},
+  volume = {{1}},
+  pages = {{1--10}}
+}}
+... (one BibTeX entry for EVERY \\cite{{key}} used in the body)
+%%END BIBTEX%%
+
+## CRITICAL: BibTeX Requirements
+- You MUST include a %%BEGIN BIBTEX%% ... %%END BIBTEX%% section.
+- Every \\cite{{key}} in the body MUST have a matching @article/@inproceedings entry in the BIBTEX section.
+- Use realistic metadata: real author names, real paper titles, real venues, accurate years.
+- Cite keys must match exactly between \\cite{{}} and @type{{key, ...}}.
+
 Write the report now."""
         text, usage = call_llm(prompt)
         return text, usage
@@ -501,10 +566,19 @@ Write the report now."""
         title_match = re.search(r"%%BEGIN TITLE%%(.*?)%%END TITLE%%", text, re.DOTALL)
         abstract_match = re.search(r"%%BEGIN ABSTRACT%%(.*?)%%END ABSTRACT%%", text, re.DOTALL)
         body_match = re.search(r"%%BEGIN BODY%%(.*?)%%END BODY%%", text, re.DOTALL)
+        bibtex_match = re.search(r"%%BEGIN BIBTEX%%(.*?)%%END BIBTEX%%", text, re.DOTALL)
 
         title = title_match.group(1).strip() if title_match else prep_res["topic"]
         abstract = abstract_match.group(1).strip() if abstract_match else "Abstract not available."
         body = body_match.group(1).strip() if body_match else text.strip()
+
+        # Extract BibTeX entries from WriteTeX output and merge with skill-collected entries
+        if bibtex_match:
+            bib_block = bibtex_match.group(1).strip()
+            tex_bib_entries = re.findall(r"(@\w+\{[^@]+)", bib_block, re.DOTALL)
+            tex_bib_entries = [e.strip() for e in tex_bib_entries if e.strip()]
+            shared.setdefault("bibtex_entries", []).extend(tex_bib_entries)
+            print(f"[WriteTeX] Extracted {len(tex_bib_entries)} BibTeX entries from report")
 
         # Assemble .tex from skeleton
         tex = LATEX_SKELETON
@@ -526,6 +600,28 @@ Write the report now."""
         shared["tex_content"] = tex
         shared["bib_content"] = bib_content
         shared["output_path"] = str(out_dir)
+
+        # --- Citation validation ---
+        cite_keys_in_tex = set(re.findall(r"\\cite\{([^}]+)\}", body))
+        # Expand comma-separated keys like \cite{a,b,c}
+        all_cite_keys = set()
+        for group in cite_keys_in_tex:
+            for key in group.split(","):
+                all_cite_keys.add(key.strip())
+
+        bib_keys = set()
+        for entry in shared.get("bibtex_entries", []):
+            m = re.match(r"@\w+\{([^,]+),", entry)
+            if m:
+                bib_keys.add(m.group(1).strip())
+
+        missing = all_cite_keys - bib_keys
+        if not bib_content.strip():
+            print(f"[WriteTeX] WARNING: references.bib is EMPTY — all citations will show as [?]")
+        elif missing:
+            print(f"[WriteTeX] WARNING: {len(missing)} cite keys missing from .bib: {', '.join(sorted(missing)[:10])}")
+        else:
+            print(f"[WriteTeX] Citation check passed: {len(all_cite_keys)} keys, all resolved")
 
         print(f"[WriteTeX] Wrote report.tex + references.bib to {out_dir}")
         print(f"[WriteTeX] Budget remaining: ${shared['budget_remaining']:.4f}")
@@ -576,8 +672,19 @@ class CompileTeX(Node):
             print(f"[CompileTeX] LaTeX source ready at: {shared['output_path']}/report.tex")
             print(f"[CompileTeX] To compile manually: cd {shared['output_path']} && pdflatex report.tex && bibtex report && pdflatex report.tex && pdflatex report.tex")
             return "done"
+
+        # Check for undefined citations even if PDF was produced
+        undefined_cites = re.findall(r"Citation `([^']+)' on page", log)
+        if undefined_cites:
+            unique_missing = sorted(set(undefined_cites))
+            print(f"[CompileTeX] WARNING: {len(unique_missing)} undefined citations: {', '.join(unique_missing[:10])}")
+            shared["has_citation_warnings"] = True
+
         if success:
-            print(f"[CompileTeX] PDF compiled successfully: {shared['output_path']}/report.pdf")
+            if undefined_cites:
+                print(f"[CompileTeX] PDF compiled with citation warnings: {shared['output_path']}/report.pdf")
+            else:
+                print(f"[CompileTeX] PDF compiled successfully: {shared['output_path']}/report.pdf")
             return "done"
         else:
             shared["compile_errors"] = log

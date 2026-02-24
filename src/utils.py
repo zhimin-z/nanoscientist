@@ -21,6 +21,38 @@ def init_env(env_path: str = None):
         raise FileNotFoundError(f".env file not found: {path}")
     load_dotenv(path, override=True)
 
+
+# --- API Key Registry ---
+# Maps environment variable names to what they unlock for the scientist.
+API_KEY_REGISTRY = {
+    "OPENROUTER_API_KEY": "Core LLM inference, research-lookup, generate-image, scientific-schematics, scientific-slides, paper-2-web",
+    "ANTHROPIC_API_KEY": "Anthropic Claude models",
+    "PERPLEXITY_API_KEY": "Perplexity Sonar search (used by research-lookup)",
+    "OPENAI_API_KEY": "OpenAI models, paper-2-web",
+    "HF_TOKEN": "Hugging Face models and datasets (used by tooluniverse)",
+    "GITHUB_TOKEN": "GitHub API access",
+    "GITLAB_TOKEN": "GitLab API access",
+}
+
+
+def detect_api_keys() -> dict[str, bool]:
+    """Check which API keys are available in the environment.
+
+    Returns a dict of {key_name: is_set} for all known keys.
+    Must be called AFTER init_env().
+    """
+    return {key: bool(os.environ.get(key)) for key in API_KEY_REGISTRY}
+
+
+def format_available_keys(keys: dict[str, bool]) -> str:
+    """Format detected API keys as a readable summary for LLM prompts."""
+    lines = []
+    for key, is_set in keys.items():
+        status = "available" if is_set else "NOT SET"
+        desc = API_KEY_REGISTRY.get(key, "")
+        lines.append(f"- {key}: {status} — {desc}")
+    return "\n".join(lines)
+
 # --- LLM Configuration ---
 MODEL = "minimax/minimax-m2.5"
 INPUT_COST_PER_M = 0.30   # $/M input tokens
@@ -123,14 +155,34 @@ def parse_yaml_response(text: str) -> dict:
 def extract_bibtex(text: str) -> tuple[str, list[str]]:
     """Split LLM response into (main_content, list_of_bibtex_entries).
 
-    The LLM is instructed to put BibTeX in a ```bibtex ... ``` block.
+    Handles multiple LLM output formats:
+    - ```bibtex ... ```  (standard)
+    - ```bib ... ```     (common variant)
+    - ``` ... ```        (no language tag, if it contains @article etc.)
+    - Raw @article{...}  entries outside code blocks (fallback)
     """
-    bib_match = re.search(r"```bibtex(.*?)```", text, re.DOTALL | re.IGNORECASE)
-    if not bib_match:
-        return text.strip(), []
+    # Try fenced code blocks: ```bibtex, ```bib, ```BibTeX, ```latex (with bibtex inside)
+    bib_match = re.search(r"```(?:bibtex|bib|BibTeX)\s*(.*?)```", text, re.DOTALL | re.IGNORECASE)
 
-    main_content = text[: bib_match.start()].strip()
-    bib_block = bib_match.group(1).strip()
+    if not bib_match:
+        # Try generic fenced block that contains @article/@inproceedings etc.
+        for m in re.finditer(r"```\w*\s*(.*?)```", text, re.DOTALL):
+            if re.search(r"@\w+\{", m.group(1)):
+                bib_match = m
+                break
+
+    if bib_match:
+        main_content = text[: bib_match.start()].strip()
+        bib_block = bib_match.group(1).strip()
+    else:
+        # Fallback: extract raw @type{...} entries from the end of the text
+        raw_entries = list(re.finditer(r"@\w+\{", text))
+        if raw_entries:
+            first_entry_pos = raw_entries[0].start()
+            main_content = text[:first_entry_pos].strip()
+            bib_block = text[first_entry_pos:].strip()
+        else:
+            return text.strip(), []
 
     # Split into individual entries
     entries = re.findall(r"(@\w+\{[^@]+)", bib_block, re.DOTALL)

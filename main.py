@@ -11,7 +11,7 @@ import argparse
 import sys
 
 from pathlib import Path
-from src.utils import init_env, load_skill_index, load_quality_standard
+from src.utils import init_env, load_skill_index, load_quality_standard, detect_api_keys, format_available_keys
 from src.flow import create_scientist_flow
 
 # Resolve project paths
@@ -39,6 +39,14 @@ def run(topic: str, budget: float, output_dir: str):
     if quality_standard:
         print(f"Loaded paper quality standard from docs/PAPER_QUALITY_STANDARD.md")
 
+    # Detect available API keys so the scientist knows its capabilities
+    api_keys = detect_api_keys()
+    available = [k for k, v in api_keys.items() if v]
+    missing = [k for k, v in api_keys.items() if not v]
+    print(f"API keys available: {', '.join(available) if available else 'NONE'}")
+    if missing:
+        print(f"API keys missing: {', '.join(missing)}")
+
     # Initialize shared store
     shared = {
         "topic": topic,
@@ -49,6 +57,7 @@ def run(topic: str, budget: float, output_dir: str):
         "skills_dir": str(SKILLS_DIR),    # path for lazy-loading SKILL.md
         "output_dir": output_dir,
         "quality_standard": quality_standard,
+        "api_keys": api_keys,             # {key_name: is_set} for capability awareness
     }
 
     # Create and run flow

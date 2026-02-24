@@ -11,6 +11,11 @@
       "description": "Creates effective data visualizations using various libraries and tools, with focus on clarity and insight communication. Trigger keywords: chart, graph, plot, visualization, dashboard, matplotlib, d3, plotly, visualization."
     },
     {
+      "id": "github-mining",
+      "name": "github-mining",
+      "description": "Mine GitHub repositories using the REST API for empirical software engineering research. Collect commits, issues, pull requests, contributors, file trees, and repository statistics with proper pagination and rate-limit handling. Use for analyzing open-source project evolution, contributor patterns, issue taxonomies, domain coverage gaps, and collaboration networks. Requires GITHUB_TOKEN."
+    },
+    {
       "id": "generate-image",
       "name": "generate-image",
       "description": "Generate or edit images using AI models (FLUX, Gemini). Use for general-purpose image generation including photos, illustrations, artwork, visual assets, concept art, and any image that is not a technical diagram or schematic. For flowcharts, circuits, pathways, and technical diagrams, use the scientific-schematics skill instead."
