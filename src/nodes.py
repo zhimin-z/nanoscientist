@@ -1508,6 +1508,35 @@ class QualityReview(Node):
 - Citations collected: {prep_res["bibtex_count"]}
 - Artifacts/data collected: {len(artifact_keys)} items
 
+## Research-Type-Specific Quality Priorities
+
+Prioritize gaps based on the research type detected from the topic:
+
+**Empirical study / Mining study / Data-driven research:**
+- HIGHEST PRIORITY: Sufficient data collection (multiple API calls, diverse data sources), statistical analysis (significance tests, effect sizes, confidence intervals), data visualizations (charts, plots, heatmaps for every RQ), ablation/sensitivity analysis, reproducibility details
+- Must have: baselines/comparisons, multiple metrics per RQ, cross-validation or robustness checks
+- Prioritize skills: github-mining, statistical-analysis, data-visualization, research-lookup
+
+**Theoretical analysis / Formal methods / Proofs:**
+- HIGHEST PRIORITY: Mathematical formulation (theorems, lemmas, proofs, formal definitions), logical rigor, completeness of deductions, notation consistency
+- Must have: formal problem statement, proof sketches or full proofs, complexity analysis, comparison with existing theoretical bounds
+- Prioritize skills: research-lookup (for related theorems), scientific-critical-thinking, hypothesis-generation
+
+**Survey / Literature review:**
+- HIGHEST PRIORITY: Breadth and depth of coverage (many citations, multiple research groups), thematic organization, gap identification, taxonomy/classification
+- Must have: 30+ citations for comprehensive surveys, comparison tables, timeline of field evolution
+- Prioritize skills: research-lookup, literature-review, citation-management
+
+**Systems / Architecture / Engineering:**
+- HIGHEST PRIORITY: System design diagrams, performance benchmarks, scalability analysis, design trade-offs, implementation details
+- Must have: architecture diagrams, latency/throughput metrics, comparison with alternative designs
+- Prioritize skills: data-visualization, statistical-analysis, research-lookup
+
+**Applied ML / Experiments:**
+- HIGHEST PRIORITY: Baselines (trivial + SOTA + closest method), ablation studies, statistical rigor (mean +/- std over 3+ runs), multiple evaluation metrics, failure analysis
+- Must have: hyperparameter documentation, compute requirements, training curves
+- Prioritize skills: statistical-analysis, data-visualization, research-lookup, peer-review
+
 ## Paper Quality Checklist
 {checklist_section}
 
@@ -1520,10 +1549,14 @@ class QualityReview(Node):
 - Each additional skill call costs ~$0.005
 
 ## Instructions
-Review the work done against the quality checklist. Identify the TOP 5 most critical gaps that would improve the paper. For each gap, suggest a specific skill call to address it.
+1. First, identify the research type from the topic (empirical, theoretical, survey, systems, applied ML, or mixed).
+2. Apply the matching priority criteria above to evaluate the work done.
+3. Identify the TOP 5 most critical gaps based on the research-type priorities.
+4. For each gap, suggest a specific skill call with a concrete query to address it.
 
 Return YAML:
 ```yaml
+research_type: <empirical | theoretical | survey | systems | applied_ml | mixed>
 gaps:
   - gap: <what is missing>
     skill: <skill-name to address it>
