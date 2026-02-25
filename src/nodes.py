@@ -1567,16 +1567,20 @@ gaps:
 verdict: deepen  # or "done" if the paper already meets the standard well
 ```"""
         text, usage = call_llm(prompt)
-        return text, usage
+        parsed = parse_yaml_response(text)
+        if not parsed or not isinstance(parsed.get("gaps"), list):
+            print(f"[QualityReview] YAML parse failed, retrying... Raw response:")
+            print(text[:500])
+            raise ValueError("QualityReview: LLM returned invalid YAML")
+        return text, usage, parsed
 
     def post(self, shared, prep_res, exec_res):
         if exec_res is None:
             return "done"
 
-        text, usage = exec_res
+        text, usage, parsed = exec_res
         track_cost(shared, "quality_review", usage)
 
-        parsed = parse_yaml_response(text) or {}
         verdict = parsed.get("verdict", "done")
         gaps = parsed.get("gaps", [])
 

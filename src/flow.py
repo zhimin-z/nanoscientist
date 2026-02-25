@@ -40,7 +40,7 @@ def create_scientist_flow() -> Flow:
     write_tex       = WriteTeX(max_retries=2, wait=3)
     compile_tex     = CompileTeX(max_retries=1, wait=0)
     fix_tex         = FixTeX(max_retries=2, wait=3)
-    quality_review  = QualityReview(max_retries=1, wait=3)
+    quality_review  = QualityReview(max_retries=5, wait=3)
     finisher        = Finisher()
 
     # Agent loop: collect data via skills
