@@ -158,13 +158,18 @@ plan:
     reason: <why this step>
 ```"""
         text, usage = call_llm(prompt)
-        return text, usage
+        # Validate YAML parsing inside exec so PocketFlow retries on failure
+        parsed = parse_yaml_response(text)
+        if not parsed or not isinstance(parsed.get("plan"), list) or len(parsed["plan"]) == 0:
+            print(f"[BudgetPlanner] YAML parse failed or empty plan, retrying... Raw response:")
+            print(text[:500])
+            raise ValueError("BudgetPlanner: LLM returned invalid or empty YAML plan")
+        return text, usage, parsed
 
     def post(self, shared, prep_res, exec_res):
-        text, usage = exec_res
+        text, usage, parsed = exec_res
         track_cost(shared, "budget_planner", usage)
 
-        parsed = parse_yaml_response(text)
         shared["plan"] = parsed.get("plan", [])
         shared["domain"] = parsed.get("domain", "general")
         shared["report_type"] = parsed.get("report_type", "Literature Review")
@@ -1438,7 +1443,139 @@ class FixTeX(Node):
 
 
 # ===================================================================
-# 7. Finisher — terminal node (no successors → flow ends cleanly)
+# 7. QualityReview — check paper against quality standard before finishing
+# ===================================================================
+class QualityReview(Node):
+    """When the paper is compiled but budget remains, review against
+    PAPER_QUALITY_STANDARD.md and loop back to fill gaps."""
+
+    MAX_REVIEW_ROUNDS = 3  # prevent infinite loops
+
+    def prep(self, shared):
+        total_budget = shared.get("budget_dollars", 1)
+        remaining = shared.get("budget_remaining", 0)
+        used_frac = 1 - (remaining / total_budget) if total_budget > 0 else 1.0
+        rounds = shared.get("quality_review_rounds", 0)
+        return {
+            "used_frac": used_frac,
+            "remaining": remaining,
+            "rounds": rounds,
+            "topic": shared.get("topic", ""),
+            "report_type": shared.get("report_type", "Full Paper"),
+            "history": shared.get("history", []),
+            "artifacts": shared.get("artifacts", {}),
+            "bibtex_count": len(shared.get("bibtex_entries", [])),
+            "quality_standard": shared.get("quality_standard", ""),
+            "skill_index": shared.get("skill_index", {}),
+        }
+
+    def exec(self, prep_res):
+        # Skip review if budget mostly used, too little remaining, or max rounds hit
+        if prep_res["used_frac"] >= 0.60:
+            print(f"[QualityReview] Budget {prep_res['used_frac']:.0%} used — sufficient, skipping review")
+            return None
+        if prep_res["remaining"] < BUDGET_RESERVE * 3:
+            print(f"[QualityReview] Only ${prep_res['remaining']:.3f} left — not enough to deepen")
+            return None
+        if prep_res["rounds"] >= self.MAX_REVIEW_ROUNDS:
+            print(f"[QualityReview] Max review rounds ({self.MAX_REVIEW_ROUNDS}) reached — finishing")
+            return None
+
+        # Extract the self-assessment checklist (Section 10) from quality standard
+        qs = prep_res["quality_standard"]
+        checklist_section = ""
+        if "## 10. Self-Assessment Checklist" in qs:
+            checklist_section = qs[qs.index("## 10. Self-Assessment Checklist"):]
+        else:
+            checklist_section = qs[-2000:]  # fallback: last portion
+
+        # Build summary of what we have
+        skill_counts = Counter(h["skill"] for h in prep_res["history"])
+        skills_summary = ", ".join(f"{s}({c})" for s, c in skill_counts.most_common())
+        artifact_keys = list(prep_res["artifacts"].keys())
+
+        prompt = f"""You are a research quality reviewer. A paper has been drafted on the following topic:
+
+## Topic
+{prep_res["topic"][:500]}
+
+## Report Type
+{prep_res["report_type"]}
+
+## What Has Been Done
+- Skills executed: {skills_summary}
+- Total skill executions: {len(prep_res["history"])}
+- Citations collected: {prep_res["bibtex_count"]}
+- Artifacts/data collected: {len(artifact_keys)} items
+
+## Paper Quality Checklist
+{checklist_section}
+
+## Available Skills for Deepening
+{', '.join(prep_res["skill_index"].keys())}
+
+## Budget Status
+- Budget used: {prep_res["used_frac"]:.0%}
+- Remaining: ${prep_res["remaining"]:.2f}
+- Each additional skill call costs ~$0.005
+
+## Instructions
+Review the work done against the quality checklist. Identify the TOP 5 most critical gaps that would improve the paper. For each gap, suggest a specific skill call to address it.
+
+Return YAML:
+```yaml
+gaps:
+  - gap: <what is missing>
+    skill: <skill-name to address it>
+    query: <specific query or focus for the skill>
+  - gap: <what is missing>
+    skill: <skill-name>
+    query: <specific focus>
+verdict: deepen  # or "done" if the paper already meets the standard well
+```"""
+        text, usage = call_llm(prompt)
+        return text, usage
+
+    def post(self, shared, prep_res, exec_res):
+        if exec_res is None:
+            return "done"
+
+        text, usage = exec_res
+        track_cost(shared, "quality_review", usage)
+
+        parsed = parse_yaml_response(text) or {}
+        verdict = parsed.get("verdict", "done")
+        gaps = parsed.get("gaps", [])
+
+        shared["quality_review_rounds"] = prep_res["rounds"] + 1
+
+        if verdict == "deepen" and gaps:
+            # Convert gaps into new plan steps appended to the existing plan
+            new_steps = []
+            start_step = len(shared.get("plan", [])) + 1
+            for i, gap in enumerate(gaps):
+                if isinstance(gap, dict) and gap.get("skill") in prep_res["skill_index"]:
+                    new_steps.append({
+                        "step": start_step + i,
+                        "skill": gap["skill"],
+                        "reason": f"[QualityReview] {gap.get('gap', 'fill gap')}",
+                        "query": gap.get("query", ""),
+                    })
+
+            if new_steps:
+                shared["plan"].extend(new_steps)
+                # Reset the write_tex completion so DecideNext sees remaining steps
+                print(f"[QualityReview] Found {len(new_steps)} gaps — adding steps and looping back")
+                for step in new_steps:
+                    print(f"  → {step['skill']}: {step['reason']}")
+                return "deepen"
+
+        print("[QualityReview] Paper quality sufficient — proceeding to finish")
+        return "done"
+
+
+# ===================================================================
+# 8. Finisher — terminal node (no successors → flow ends cleanly)
 # ===================================================================
 class Finisher(Node):
     """Print cost summary and end the flow."""

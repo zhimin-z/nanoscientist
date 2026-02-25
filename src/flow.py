@@ -11,6 +11,7 @@ from .nodes import (
     WriteTeX,
     CompileTeX,
     FixTeX,
+    QualityReview,
     Finisher,
 )
 
@@ -25,9 +26,13 @@ def create_scientist_flow() -> Flow:
                                                             ↓
                                                     CompileTeX ↔ FixTeX (loop)
                                                         ↓
-                                                      (END)
+                                                  QualityReview
+                                                   ↓          ↓
+                                                 (deepen)    (done)
+                                                   ↓          ↓
+                                                DecideNext  Finisher
     """
-    planner         = BudgetPlanner(max_retries=2, wait=3)
+    planner         = BudgetPlanner(max_retries=5, wait=3)
     decide          = DecideNext(max_retries=2, wait=3)
     execute_skill   = ExecuteSkill(max_retries=2, wait=5)
     generate_figs   = GenerateFigures(max_retries=1, wait=3)
@@ -35,6 +40,7 @@ def create_scientist_flow() -> Flow:
     write_tex       = WriteTeX(max_retries=2, wait=3)
     compile_tex     = CompileTeX(max_retries=1, wait=0)
     fix_tex         = FixTeX(max_retries=2, wait=3)
+    quality_review  = QualityReview(max_retries=1, wait=3)
     finisher        = Finisher()
 
     # Agent loop: collect data via skills
@@ -52,8 +58,12 @@ def create_scientist_flow() -> Flow:
 
     # Compile & fix loop
     compile_tex - "fix"     >> fix_tex
-    compile_tex - "done"    >> finisher
+    compile_tex - "done"    >> quality_review
     fix_tex     - "compile" >> compile_tex
-    fix_tex     - "done"    >> finisher
+    fix_tex     - "done"    >> quality_review
+
+    # Quality gate: if budget remains, identify gaps and loop back
+    quality_review - "deepen" >> decide
+    quality_review - "done"   >> finisher
 
     return Flow(start=planner)

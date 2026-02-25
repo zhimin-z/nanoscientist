@@ -170,9 +170,20 @@ def format_skill_index(index: dict[str, str]) -> str:
 
 def parse_yaml_response(text: str) -> dict:
     """Extract and parse a YAML block from an LLM response."""
-    match = re.search(r"```yaml(.*?)```", text, re.DOTALL | re.IGNORECASE)
+    # Try ```yaml, ```yml, ```YAML
+    match = re.search(r"```(?:yaml|yml)\s*(.*?)```", text, re.DOTALL | re.IGNORECASE)
+    if not match:
+        # Try any fenced block that looks like YAML (has "key:" patterns)
+        for m in re.finditer(r"```\w*\s*(.*?)```", text, re.DOTALL):
+            if re.search(r"^\s*\w+\s*:", m.group(1), re.MULTILINE):
+                match = m
+                break
     block = match.group(1).strip() if match else text.strip()
-    return yaml.safe_load(block)
+    try:
+        result = yaml.safe_load(block)
+        return result if isinstance(result, dict) else None
+    except yaml.YAMLError:
+        return None
 
 
 def extract_bibtex(text: str) -> tuple[str, list[str]]:
