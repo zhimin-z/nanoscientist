@@ -237,6 +237,14 @@ class DecideNext(Node):
             if skill_seen[skill] > exec_counts.get(skill, 0):
                 remaining.append(s)
 
+        # Check figure status for contextual nudging
+        out_dir = Path(shared.get("output_path", ""))
+        figures_dir = out_dir / "figures"
+        has_figures = (figures_dir.is_dir()
+                       and any(f.suffix.lower() in (".png", ".pdf", ".jpg", ".jpeg")
+                               for f in figures_dir.iterdir())) if figures_dir.exists() else False
+        has_data = bool(shared.get("generated_files", {}))
+
         return {
             "topic": shared["topic"],
             "remaining_plan": remaining,
@@ -244,6 +252,8 @@ class DecideNext(Node):
             "budget_remaining": shared.get("budget_remaining", 0),
             "artifact_keys": list(shared.get("artifacts", {}).keys()),
             "available_skills": format_skill_index(shared["skill_index"]),
+            "has_figures": has_figures,
+            "has_data": has_data,
         }
 
     def exec(self, prep_res):
@@ -260,6 +270,11 @@ class DecideNext(Node):
         cost_per_skill = 0.005  # conservative estimate
         usable_budget = prep_res["budget_remaining"] - BUDGET_RESERVE
         affordable_steps = max(0, int(usable_budget / cost_per_skill))
+
+        # Contextual nudge: if data exists but no figures yet
+        figure_nudge = ""
+        if prep_res["has_data"] and not prep_res["has_figures"]:
+            figure_nudge = "\n**NOTE**: Data files exist but NO figures have been generated yet. Strongly consider running data-visualization before writing.\n"
 
         prompt = f"""You are the decision engine of an autonomous research agent.
 
@@ -278,7 +293,7 @@ Estimated affordable additional skill calls: {affordable_steps}
 
 ## Artifacts Collected
 {', '.join(prep_res["artifact_keys"]) if prep_res["artifact_keys"] else 'None yet.'}
-
+{figure_nudge}
 ## Available Skills (for extending the plan)
 {prep_res["available_skills"]}
 
@@ -338,34 +353,53 @@ reason: <brief reason>
             print("[DecideNext] Budget guard triggered → write_tex")
             return "write_tex"
 
-        # Budget utilization guard — override premature write_tex
-        # If LLM wants to write but we've used less than 60% of total budget,
-        # force another skill execution to deepen the research.
+        # Pre-write quality gate — checks both budget utilization AND research completeness
         if action == "write_tex":
             total = shared.get("budget_dollars", 1)
             used_frac = 1 - (shared["budget_remaining"] / total)
-            min_utilization = 0.60
-            if used_frac < min_utilization:
-                # Pick a deepening skill — cycle through useful extensions
+            history = shared.get("history", [])
+            bibtex_count = len(shared.get("bibtex_entries", []))
+            report_type = shared.get("report_type", "Literature Review")
+
+            # Minimum thresholds by report type
+            thresholds = {
+                "Quick Summary":    {"min_steps": 1,  "min_citations": 3},
+                "Literature Review": {"min_steps": 3,  "min_citations": 8},
+                "Research Report":  {"min_steps": 8,  "min_citations": 15},
+                "Full Paper":       {"min_steps": 15, "min_citations": 20},
+            }
+            t = thresholds.get(report_type, thresholds["Literature Review"])
+
+            # Override if budget underutilized OR research incomplete
+            needs_more = (used_frac < 0.60
+                          or len(history) < t["min_steps"]
+                          or bibtex_count < t["min_citations"])
+
+            if needs_more and shared["budget_remaining"] > BUDGET_RESERVE * 3:
                 deepen_cycle = [
                     "research-lookup", "literature-review",
                     "statistical-analysis", "data-visualization",
                     "scientific-critical-thinking", "peer-review",
                     "hypothesis-generation", "citation-management",
                 ]
-                # Pick one we've used least
-                exec_counts = Counter(h["skill"] for h in shared.get("history", []))
-                # Filter to skills that exist in the skill index
+                exec_counts = Counter(h["skill"] for h in history)
                 valid = [s for s in deepen_cycle if s in shared.get("skill_index", {})]
                 if valid:
                     best = min(valid, key=lambda s: exec_counts.get(s, 0))
-                    print(f"[DecideNext] Budget utilization {used_frac:.0%} < {min_utilization:.0%} "
+                    reason_parts = []
+                    if used_frac < 0.60:
+                        reason_parts.append(f"budget {used_frac:.0%} used")
+                    if len(history) < t["min_steps"]:
+                        reason_parts.append(f"{len(history)}/{t['min_steps']} steps")
+                    if bibtex_count < t["min_citations"]:
+                        reason_parts.append(f"{bibtex_count}/{t['min_citations']} citations")
+                    override_reason = ", ".join(reason_parts)
+                    print(f"[DecideNext] Quality gate: {override_reason} "
                           f"— overriding write_tex → execute_skill ({best})")
                     shared["next_skill"] = best
-                    # Update decision log with override
                     shared["decisions"][-1]["action"] = "execute_skill"
                     shared["decisions"][-1]["skill"] = best
-                    shared["decisions"][-1]["reason"] += f" [OVERRIDDEN: budget {used_frac:.0%} used]"
+                    shared["decisions"][-1]["reason"] += f" [OVERRIDDEN: {override_reason}]"
                     return "execute_skill"
 
         if action == "execute_skill":
@@ -653,310 +687,6 @@ Begin your work now."""
 
 
 # ===================================================================
-# 3b. GenerateFigures — runs after skills, before WriteTeX
-# ===================================================================
-class GenerateFigures(Node):
-    """Generate figures and tables from collected artifacts and data."""
-
-    def prep(self, shared):
-        out_dir = Path(shared.get("output_path", "")).resolve()
-
-        # Check if figures already exist
-        figures_dir = out_dir / "figures"
-        existing_figures = []
-        if figures_dir.is_dir():
-            existing_figures = [f.name for f in figures_dir.iterdir()
-                                if f.is_file() and f.suffix.lower() in (".png", ".pdf", ".jpg", ".jpeg")]
-
-        # Check for data files
-        data_dir = out_dir / "data"
-        data_files = []
-        if data_dir.is_dir():
-            data_files = [f.name for f in data_dir.iterdir() if f.is_file()]
-
-        # Collect artifact summaries for context
-        artifact_summaries = []
-        for name, content in shared.get("artifacts", {}).items():
-            artifact_summaries.append(f"### {name}\n{content[:500]}")
-
-        return {
-            "topic": shared["topic"],
-            "out_dir": str(out_dir),
-            "existing_figures": existing_figures,
-            "data_files": data_files,
-            "artifact_summaries": "\n\n".join(artifact_summaries),
-            "report_type": shared.get("report_type", "Literature Review"),
-            "budget_remaining": shared.get("budget_remaining", 0),
-        }
-
-    def exec(self, prep_res):
-        # Skip if budget is very low or figures already exist
-        if prep_res["budget_remaining"] < BUDGET_RESERVE * 2:
-            return None, {"input_tokens": 0, "output_tokens": 0, "cost": 0}
-        if len(prep_res["existing_figures"]) >= 3:
-            return None, {"input_tokens": 0, "output_tokens": 0, "cost": 0}
-
-        data_context = ""
-        if prep_res["data_files"]:
-            data_context = f"""
-## Available Data Files (in data/ directory)
-{chr(10).join(f'- {f}' for f in prep_res['data_files'])}
-
-You can load these files with pandas to create data-driven figures:
-```python
-import pandas as pd
-df = pd.read_csv('data/filename.csv')  # or json.load(open('data/filename.json'))
-```
-"""
-
-        prompt = f"""You are a scientific visualization specialist. Generate Python code that creates publication-quality figures for a research paper.
-
-## Research Topic
-{prep_res["topic"]}
-
-## Report Type: {prep_res["report_type"]}
-
-## Research Content Summary
-{prep_res["artifact_summaries"][:4000]}
-{data_context}
-## Requirements
-You MUST generate exactly 3 Python scripts, each creating one figure. Output them as separate code blocks.
-
-### Figure 1: Overview/Architecture diagram
-Create a conceptual diagram, system overview, or taxonomy visualization using matplotlib.
-Use boxes, arrows, and annotations to illustrate the key concepts or framework.
-
-### Figure 2: Quantitative comparison or trends
-Create a bar chart, line plot, or heatmap showing quantitative findings from the research.
-If data files exist, load and visualize them. Otherwise, extract numerical data from the artifacts.
-
-### Figure 3: Analysis/Distribution visualization
-Create a visualization showing distributions, correlations, or multi-dimensional comparisons.
-Options: grouped bar chart, radar/spider chart, scatter plot, violin plot, or bubble chart.
-
-## Code Rules
-- Each script is INDEPENDENT (include all imports in each)
-- Use matplotlib and seaborn with a professional style: `plt.style.use('seaborn-v0_8-paper')` or `sns.set_theme(style='whitegrid')`
-- Use a consistent color palette across all figures: `sns.color_palette('Set2')` or similar
-- Set figure size to (10, 6) or (8, 6) for readability
-- Use descriptive axis labels, titles, and legends with fontsize >= 12
-- Save to `figures/` using RELATIVE paths only
-- Use `plt.tight_layout()` before saving
-- Use `plt.savefig('figures/filename.png', dpi=300, bbox_inches='tight')`
-- Do NOT call `plt.show()`
-- Print a description of what the figure shows to stdout
-
-## Output Format
-Return exactly 3 code blocks:
-
-%%BEGIN CODE:python%%
-# Figure 1: <description>
-<complete Python script>
-%%END CODE%%
-
-%%BEGIN CODE:python%%
-# Figure 2: <description>
-<complete Python script>
-%%END CODE%%
-
-%%BEGIN CODE:python%%
-# Figure 3: <description>
-<complete Python script>
-%%END CODE%%
-
-Generate the code now. Every script MUST produce a .png file in figures/."""
-        text, usage = call_llm(prompt)
-        return text, usage
-
-    def post(self, shared, prep_res, exec_res):
-        text, usage = exec_res
-
-        if text is None:
-            print("[GenerateFigures] Skipped (budget low or figures exist)")
-            return "write"
-
-        track_cost(shared, "generate_figures", usage)
-
-        out_dir = Path(prep_res["out_dir"])
-        (out_dir / "figures").mkdir(exist_ok=True)
-        (out_dir / "scripts").mkdir(exist_ok=True)
-
-        # Extract and execute code blocks
-        code_blocks = re.findall(
-            r"%%BEGIN CODE:(\w+)%%(.*?)%%END CODE%%", text, re.DOTALL
-        )
-
-        figures_generated = 0
-        for i, (lang, code) in enumerate(code_blocks):
-            code = code.strip()
-            if not code:
-                continue
-
-            script_path = out_dir / "scripts" / f"fig_{i:02d}.py"
-            script_path.write_text(code, encoding="utf-8")
-
-            cmd = ["python", str(script_path)]
-            try:
-                result = subprocess.run(
-                    cmd,
-                    cwd=str(out_dir),
-                    capture_output=True,
-                    text=True,
-                    errors="replace",
-                    timeout=120,
-                    env={**os.environ},
-                )
-                if result.returncode == 0:
-                    print(f"[GenerateFigures] Script fig_{i:02d}.py succeeded")
-                    figures_generated += 1
-                else:
-                    print(f"[GenerateFigures] Script fig_{i:02d}.py failed (exit={result.returncode}): {result.stderr[:200]}")
-            except subprocess.TimeoutExpired:
-                print(f"[GenerateFigures] Script fig_{i:02d}.py timed out")
-            except Exception as e:
-                print(f"[GenerateFigures] Script fig_{i:02d}.py error: {e}")
-
-        # Scan for generated figures
-        figures_dir = out_dir / "figures"
-        all_figures = []
-        if figures_dir.is_dir():
-            all_figures = [f.name for f in sorted(figures_dir.iterdir())
-                          if f.is_file() and f.suffix.lower() in (".png", ".pdf", ".jpg", ".jpeg")]
-
-        print(f"[GenerateFigures] Generated {figures_generated} scripts, {len(all_figures)} figure files in figures/")
-        print(f"[GenerateFigures] Budget remaining: ${shared['budget_remaining']:.4f}")
-        return "write"
-
-
-# ===================================================================
-# 3c. GenerateTables — produce LaTeX tables from artifacts/data
-# ===================================================================
-class GenerateTables(Node):
-    """Generate LaTeX tables summarizing research findings."""
-
-    def prep(self, shared):
-        out_dir = Path(shared.get("output_path", "")).resolve()
-
-        # Collect data files for context
-        data_dir = out_dir / "data"
-        data_files = []
-        data_previews = {}
-        if data_dir.is_dir():
-            for f in sorted(data_dir.iterdir()):
-                if f.is_file() and f.suffix.lower() in (".csv", ".json", ".tsv"):
-                    data_files.append(f.name)
-                    # Read first 2KB of each data file for context
-                    try:
-                        preview = f.read_text(encoding="utf-8", errors="replace")[:2000]
-                        data_previews[f.name] = preview
-                    except Exception:
-                        pass
-
-        # Collect artifact summaries
-        artifact_summaries = []
-        for name, content in shared.get("artifacts", {}).items():
-            artifact_summaries.append(f"### {name}\n{content[:600]}")
-
-        return {
-            "topic": shared["topic"],
-            "out_dir": str(out_dir),
-            "data_files": data_files,
-            "data_previews": data_previews,
-            "artifact_summaries": "\n\n".join(artifact_summaries),
-            "report_type": shared.get("report_type", "Literature Review"),
-            "budget_remaining": shared.get("budget_remaining", 0),
-        }
-
-    def exec(self, prep_res):
-        # Skip if budget is very low
-        if prep_res["budget_remaining"] < BUDGET_RESERVE * 2:
-            return None, {"input_tokens": 0, "output_tokens": 0, "cost": 0}
-
-        data_context = ""
-        if prep_res["data_previews"]:
-            previews = []
-            for fname, preview in prep_res["data_previews"].items():
-                previews.append(f"### {fname}\n```\n{preview[:1000]}\n```")
-            data_context = f"""
-## Available Data Files (with previews)
-{chr(10).join(previews)}
-"""
-
-        prompt = f"""You are a scientific table specialist. Generate LaTeX tables that summarize research findings for a paper.
-
-## Research Topic
-{prep_res["topic"]}
-
-## Report Type: {prep_res["report_type"]}
-
-## Research Artifacts
-{prep_res["artifact_summaries"][:4000]}
-{data_context}
-## Requirements
-Generate 2-3 LaTeX tables that present key findings. Tables should use the `booktabs` package.
-
-### Table types to consider:
-1. **Comparison table**: Compare methods, tools, frameworks, or approaches across multiple dimensions
-2. **Results/Statistics table**: Quantitative metrics, counts, percentages from the research
-3. **Summary/Taxonomy table**: Categorize key concepts, features, or findings
-
-## LaTeX Table Rules
-- Use `booktabs` style: `\\toprule`, `\\midrule`, `\\bottomrule` (no vertical lines)
-- Include `\\caption{{...}}` and `\\label{{tab:...}}`
-- Wrap in `\\begin{{table}}[htbp]` environment
-- Keep tables readable: max 6-7 columns
-- Use `\\centering` inside the table environment
-- Use real data from the artifacts — do NOT fabricate numbers
-
-## Output Format
-Return each table between markers:
-
-%%BEGIN TABLE%%
-\\begin{{table}}[htbp]
-\\centering
-\\caption{{Descriptive caption here.}}
-\\label{{tab:label-here}}
-\\begin{{tabular}}{{lcc}}
-\\toprule
-Header 1 & Header 2 & Header 3 \\\\
-\\midrule
-Data & Data & Data \\\\
-\\bottomrule
-\\end{{tabular}}
-\\end{{table}}
-%%END TABLE%%
-
-Generate the tables now. Each table MUST be wrapped in %%BEGIN TABLE%% / %%END TABLE%% markers."""
-        text, usage = call_llm(prompt)
-        return text, usage
-
-    def post(self, shared, prep_res, exec_res):
-        text, usage = exec_res
-
-        if text is None:
-            print("[GenerateTables] Skipped (budget low)")
-            return "write"
-
-        track_cost(shared, "generate_tables", usage)
-
-        # Extract tables from markers
-        tables = re.findall(r"%%BEGIN TABLE%%(.*?)%%END TABLE%%", text, re.DOTALL)
-        tables = [t.strip() for t in tables if t.strip()]
-
-        if not tables:
-            # Fallback: try to extract \begin{table} blocks directly
-            tables = re.findall(
-                r"(\\begin\{table\}.*?\\end\{table\})", text, re.DOTALL
-            )
-            tables = [t.strip() for t in tables if t.strip()]
-
-        shared["latex_tables"] = tables
-        print(f"[GenerateTables] Generated {len(tables)} LaTeX tables")
-        print(f"[GenerateTables] Budget remaining: ${shared['budget_remaining']:.4f}")
-        return "write"
-
-
-# ===================================================================
 # 4. WriteTeX
 # ===================================================================
 class WriteTeX(Node):
@@ -1016,11 +746,20 @@ class WriteTeX(Node):
 
         # Scan for generated data files (for methods/results context)
         data_files = []
+        data_previews = {}
         data_dir = out_dir / "data"
         if data_dir.is_dir():
             for f in sorted(data_dir.iterdir()):
                 if f.is_file():
                     data_files.append(f.name)
+                    # Load previews for structured data (for inline table generation)
+                    if f.suffix.lower() in (".csv", ".json", ".tsv"):
+                        try:
+                            data_previews[f.name] = f.read_text(
+                                encoding="utf-8", errors="replace"
+                            )[:2000]
+                        except Exception:
+                            pass
 
         return {
             "topic": shared["topic"],
@@ -1032,7 +771,7 @@ class WriteTeX(Node):
             "writing_guide": writing_guide,
             "figure_files": figure_files,
             "data_files": data_files,
-            "latex_tables": shared.get("latex_tables", []),
+            "data_previews": data_previews,
         }
 
     def exec(self, prep_res):
@@ -1085,7 +824,7 @@ To include a figure, use this LaTeX pattern:
 Reference each figure in the text as Figure~\\ref{{fig:<label>}}.
 """
 
-        # Build data files context
+        # Build data files context with previews for inline table generation
         data_block = ""
         if prep_res.get("data_files"):
             data_list = "\n".join(f"- {f}" for f in prep_res["data_files"])
@@ -1094,18 +833,21 @@ Reference each figure in the text as Figure~\\ref{{fig:<label>}}.
 The following data files were collected during research. Reference their contents in your Methods and Results sections:
 {data_list}
 """
+            # Add data previews for table generation
+            if prep_res.get("data_previews"):
+                previews = []
+                for fname, preview in prep_res["data_previews"].items():
+                    previews.append(f"### {fname}\n```\n{preview[:1000]}\n```")
+                data_block += "\n### Data Previews\n" + "\n".join(previews) + "\n"
 
-        # Build pre-generated tables block
-        tables_block = ""
-        if prep_res.get("latex_tables"):
-            tables_joined = "\n\n".join(prep_res["latex_tables"])
-            tables_block = f"""
-## Pre-Generated Tables
-The following LaTeX tables have been generated from the research data. You MUST include them
-in appropriate sections of the paper (typically Results or Background). Reference each table
-in the text as Table~\\ref{{tab:label}}.
-
-{tables_joined}
+        # Table generation instructions (inline, no separate node needed)
+        tables_block = """
+## Table Generation
+You MUST include 2-3 summary tables in appropriate sections (Results or Background).
+Use booktabs style: \\\\toprule, \\\\midrule, \\\\bottomrule (no vertical lines).
+Wrap in \\\\begin{table}[htbp] with \\\\centering, \\\\caption, and \\\\label{tab:...}.
+Extract real data from the artifacts and data files — do NOT fabricate numbers.
+Reference each table in the text as Table~\\\\ref{tab:label}.
 """
 
         prompt = f"""You are writing a scientific {report_type.lower()} as compilable LaTeX.
@@ -1443,176 +1185,7 @@ class FixTeX(Node):
 
 
 # ===================================================================
-# 7. QualityReview — check paper against quality standard before finishing
-# ===================================================================
-class QualityReview(Node):
-    """When the paper is compiled but budget remains, review against
-    PAPER_QUALITY_STANDARD.md and loop back to fill gaps."""
-
-    MAX_REVIEW_ROUNDS = 3  # prevent infinite loops
-
-    def prep(self, shared):
-        total_budget = shared.get("budget_dollars", 1)
-        remaining = shared.get("budget_remaining", 0)
-        used_frac = 1 - (remaining / total_budget) if total_budget > 0 else 1.0
-        rounds = shared.get("quality_review_rounds", 0)
-        return {
-            "used_frac": used_frac,
-            "remaining": remaining,
-            "rounds": rounds,
-            "topic": shared.get("topic", ""),
-            "report_type": shared.get("report_type", "Full Paper"),
-            "history": shared.get("history", []),
-            "artifacts": shared.get("artifacts", {}),
-            "bibtex_count": len(shared.get("bibtex_entries", [])),
-            "quality_standard": shared.get("quality_standard", ""),
-            "skill_index": shared.get("skill_index", {}),
-        }
-
-    def exec(self, prep_res):
-        # Skip review if budget mostly used, too little remaining, or max rounds hit
-        if prep_res["used_frac"] >= 0.60:
-            print(f"[QualityReview] Budget {prep_res['used_frac']:.0%} used — sufficient, skipping review")
-            return None
-        if prep_res["remaining"] < BUDGET_RESERVE * 3:
-            print(f"[QualityReview] Only ${prep_res['remaining']:.3f} left — not enough to deepen")
-            return None
-        if prep_res["rounds"] >= self.MAX_REVIEW_ROUNDS:
-            print(f"[QualityReview] Max review rounds ({self.MAX_REVIEW_ROUNDS}) reached — finishing")
-            return None
-
-        # Extract the self-assessment checklist (Section 10) from quality standard
-        qs = prep_res["quality_standard"]
-        checklist_section = ""
-        if "## 10. Self-Assessment Checklist" in qs:
-            checklist_section = qs[qs.index("## 10. Self-Assessment Checklist"):]
-        else:
-            checklist_section = qs[-2000:]  # fallback: last portion
-
-        # Build summary of what we have
-        skill_counts = Counter(h["skill"] for h in prep_res["history"])
-        skills_summary = ", ".join(f"{s}({c})" for s, c in skill_counts.most_common())
-        artifact_keys = list(prep_res["artifacts"].keys())
-
-        prompt = f"""You are a research quality reviewer. A paper has been drafted on the following topic:
-
-## Topic
-{prep_res["topic"][:500]}
-
-## Report Type
-{prep_res["report_type"]}
-
-## What Has Been Done
-- Skills executed: {skills_summary}
-- Total skill executions: {len(prep_res["history"])}
-- Citations collected: {prep_res["bibtex_count"]}
-- Artifacts/data collected: {len(artifact_keys)} items
-
-## Research-Type-Specific Quality Priorities
-
-Prioritize gaps based on the research type detected from the topic:
-
-**Empirical study / Mining study / Data-driven research:**
-- HIGHEST PRIORITY: Sufficient data collection (multiple API calls, diverse data sources), statistical analysis (significance tests, effect sizes, confidence intervals), data visualizations (charts, plots, heatmaps for every RQ), ablation/sensitivity analysis, reproducibility details
-- Must have: baselines/comparisons, multiple metrics per RQ, cross-validation or robustness checks
-- Prioritize skills: github-mining, statistical-analysis, data-visualization, research-lookup
-
-**Theoretical analysis / Formal methods / Proofs:**
-- HIGHEST PRIORITY: Mathematical formulation (theorems, lemmas, proofs, formal definitions), logical rigor, completeness of deductions, notation consistency
-- Must have: formal problem statement, proof sketches or full proofs, complexity analysis, comparison with existing theoretical bounds
-- Prioritize skills: research-lookup (for related theorems), scientific-critical-thinking, hypothesis-generation
-
-**Survey / Literature review:**
-- HIGHEST PRIORITY: Breadth and depth of coverage (many citations, multiple research groups), thematic organization, gap identification, taxonomy/classification
-- Must have: 30+ citations for comprehensive surveys, comparison tables, timeline of field evolution
-- Prioritize skills: research-lookup, literature-review, citation-management
-
-**Systems / Architecture / Engineering:**
-- HIGHEST PRIORITY: System design diagrams, performance benchmarks, scalability analysis, design trade-offs, implementation details
-- Must have: architecture diagrams, latency/throughput metrics, comparison with alternative designs
-- Prioritize skills: data-visualization, statistical-analysis, research-lookup
-
-**Applied ML / Experiments:**
-- HIGHEST PRIORITY: Baselines (trivial + SOTA + closest method), ablation studies, statistical rigor (mean +/- std over 3+ runs), multiple evaluation metrics, failure analysis
-- Must have: hyperparameter documentation, compute requirements, training curves
-- Prioritize skills: statistical-analysis, data-visualization, research-lookup, peer-review
-
-## Paper Quality Checklist
-{checklist_section}
-
-## Available Skills for Deepening
-{', '.join(prep_res["skill_index"].keys())}
-
-## Budget Status
-- Budget used: {prep_res["used_frac"]:.0%}
-- Remaining: ${prep_res["remaining"]:.2f}
-- Each additional skill call costs ~$0.005
-
-## Instructions
-1. First, identify the research type from the topic (empirical, theoretical, survey, systems, applied ML, or mixed).
-2. Apply the matching priority criteria above to evaluate the work done.
-3. Identify the TOP 5 most critical gaps based on the research-type priorities.
-4. For each gap, suggest a specific skill call with a concrete query to address it.
-
-Return YAML:
-```yaml
-research_type: <empirical | theoretical | survey | systems | applied_ml | mixed>
-gaps:
-  - gap: <what is missing>
-    skill: <skill-name to address it>
-    query: <specific query or focus for the skill>
-  - gap: <what is missing>
-    skill: <skill-name>
-    query: <specific focus>
-verdict: deepen  # or "done" if the paper already meets the standard well
-```"""
-        text, usage = call_llm(prompt)
-        parsed = parse_yaml_response(text)
-        if not parsed or not isinstance(parsed.get("gaps"), list):
-            print(f"[QualityReview] YAML parse failed, retrying... Raw response:")
-            print(text[:500])
-            raise ValueError("QualityReview: LLM returned invalid YAML")
-        return text, usage, parsed
-
-    def post(self, shared, prep_res, exec_res):
-        if exec_res is None:
-            return "done"
-
-        text, usage, parsed = exec_res
-        track_cost(shared, "quality_review", usage)
-
-        verdict = parsed.get("verdict", "done")
-        gaps = parsed.get("gaps", [])
-
-        shared["quality_review_rounds"] = prep_res["rounds"] + 1
-
-        if verdict == "deepen" and gaps:
-            # Convert gaps into new plan steps appended to the existing plan
-            new_steps = []
-            start_step = len(shared.get("plan", [])) + 1
-            for i, gap in enumerate(gaps):
-                if isinstance(gap, dict) and gap.get("skill") in prep_res["skill_index"]:
-                    new_steps.append({
-                        "step": start_step + i,
-                        "skill": gap["skill"],
-                        "reason": f"[QualityReview] {gap.get('gap', 'fill gap')}",
-                        "query": gap.get("query", ""),
-                    })
-
-            if new_steps:
-                shared["plan"].extend(new_steps)
-                # Reset the write_tex completion so DecideNext sees remaining steps
-                print(f"[QualityReview] Found {len(new_steps)} gaps — adding steps and looping back")
-                for step in new_steps:
-                    print(f"  → {step['skill']}: {step['reason']}")
-                return "deepen"
-
-        print("[QualityReview] Paper quality sufficient — proceeding to finish")
-        return "done"
-
-
-# ===================================================================
-# 8. Finisher — terminal node (no successors → flow ends cleanly)
+# 7. Finisher — terminal node (no successors → flow ends cleanly)
 # ===================================================================
 class Finisher(Node):
     """Print cost summary and end the flow."""
