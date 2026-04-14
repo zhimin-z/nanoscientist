@@ -8,12 +8,17 @@ Built on [PocketFlow](https://github.com/The-Pocket/PocketFlow). Directly inspir
 
 ## How it works
 
-```
-BudgetPlanner → DecideNext ↔ ExecuteSkill (loop)
-                    ↓
-                 WriteTeX → CompileTeX ↔ FixTeX
-                                ↓
-                             Finisher
+```mermaid
+flowchart LR
+    BP[BudgetPlanner] --> DN[DecideNext]
+    DN -->|execute_skill| ES[ExecuteSkill]
+    ES -->|decide| DN
+    DN -->|write_tex| WT[WriteTeX]
+    WT --> CT[CompileTeX]
+    CT -->|fix| FT[FixTeX]
+    FT -->|compile| CT
+    CT -->|done| F[Finisher]
+    FT -->|done| F
 ```
 
 | Stage | What happens |
