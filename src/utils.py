@@ -464,20 +464,25 @@ def format_skill_index(index: dict[str, str]) -> str:
     return "\n".join(lines)
 
 
-def parse_yaml_response(text: str) -> dict:
-    """Extract and parse a YAML block from an LLM response."""
+def parse_yaml_response(text: str):
+    """Extract and parse a YAML block from an LLM response.
+
+    Returns a dict, list, or None. Callers must check the type they expect.
+    """
     # Try ```yaml, ```yml, ```YAML
     match = re.search(r"```(?:yaml|yml)\s*(.*?)```", text, re.DOTALL | re.IGNORECASE)
     if not match:
-        # Try any fenced block that looks like YAML (has "key:" patterns)
+        # Try any fenced block that looks like YAML (dict key: or list - item)
         for m in re.finditer(r"```\w*\s*(.*?)```", text, re.DOTALL):
-            if re.search(r"^\s*\w+\s*:", m.group(1), re.MULTILINE):
+            block_candidate = m.group(1)
+            if re.search(r"^\s*\w+\s*:", block_candidate, re.MULTILINE) or \
+               re.search(r"^\s*-\s+\w+", block_candidate, re.MULTILINE):
                 match = m
                 break
     block = match.group(1).strip() if match else text.strip()
     try:
         result = yaml.safe_load(block)
-        return result if isinstance(result, dict) else None
+        return result if isinstance(result, (dict, list)) else None
     except yaml.YAMLError:
         return None
 

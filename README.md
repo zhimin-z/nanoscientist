@@ -4,7 +4,7 @@
 
 <img width="1200" height="800" alt="Nanoscientist" src="https://github.com/user-attachments/assets/fadce36b-34c2-4649-97f0-16c257b55d3d" />
 
-An autonomous research agent that turns a topic into a peer-reviewed technical report — within a dollar budget you set. The entire agent is ~4 files, 7 nodes, ~20 skills. No framework bloat, no orchestration overhead.
+An autonomous research agent that turns a topic into a peer-reviewed technical report — within a dollar budget you set. The entire agent is ~4 files, 8 nodes, ~20 skills. No framework bloat, no orchestration overhead.
 
 Built on [PocketFlow](https://github.com/The-Pocket/PocketFlow). Directly inspired by [karpathy/autoresearch](https://github.com/karpathy/autoresearch): fix the budget, run the loops, let the agent figure out the rest.
 
@@ -14,7 +14,8 @@ Built on [PocketFlow](https://github.com/The-Pocket/PocketFlow). Directly inspir
 
 ```mermaid
 flowchart TD
-    I([Initializer]) --> RE
+    I([Initializer]) --> PL[PlanExecutor]
+    PL -->|research| RE
 
     subgraph RESEARCH["Research Loop"]
         RE[ResearchExecutor]
@@ -47,7 +48,8 @@ flowchart TD
 | Stage | What happens |
 |---|---|
 | **Initializer** | Infers report type from budget, sets up `outputs/<uuid>/` — zero LLM calls |
-| **ResearchExecutor** | Autonomous loop: picks one skill per iteration, decomposes it inline (2–5 steps), executes; self-loops until budget threshold; supports *scoped mode* for revision-directed research |
+| **PlanExecutor** | One LLM call — drafts a 3–7 step ordered research plan (feedforward); stores it in shared state so each loop iteration can mark items done (feedback) |
+| **ResearchExecutor** | Autonomous loop: follows plan → picks one skill per iteration, decomposes it inline (2–5 steps), executes; marks plan items complete; self-loops until budget threshold; supports *scoped mode* for revision-directed research |
 | **WritingExecutor** | Autonomous loop: picks one section per iteration, writes LaTeX; self-loops until all sections done; supports *scoped mode* for targeted rewrites |
 | **ReviewExecutor** | Assembles the full draft and runs peer-review; dispatches the top major comment directly to research or rewrite; returns `compile` when the draft is accepted |
 | **CompileTeX** | Runs `pdflatex` + `bibtex` to produce a PDF — runs **exactly once** |

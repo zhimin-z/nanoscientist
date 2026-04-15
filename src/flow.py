@@ -14,6 +14,7 @@ from pocketflow import Flow
 
 from .nodes import (
     Initializer,
+    PlanExecutor,
     ResearchExecutor,
     WritingExecutor,
     ReviewExecutor,
@@ -25,6 +26,7 @@ from .nodes import (
 
 def create_scientist_flow() -> Flow:
     init     = Initializer()
+    planner  = PlanExecutor(max_retries=2, wait=3)
     research = ResearchExecutor(max_retries=2, wait=5)
     writing  = WritingExecutor(max_retries=2, wait=5)
     review   = ReviewExecutor(max_retries=2, wait=5)
@@ -32,8 +34,9 @@ def create_scientist_flow() -> Flow:
     fix_tex  = FixTeX(max_retries=2, wait=3)
     finisher = Finisher()
 
-    # Entry
-    init     - "research" >> research
+    # Entry: Initializer → PlanExecutor → ResearchExecutor
+    init     - "research" >> planner
+    planner  - "research" >> research
 
     # Research loop
     research - "research" >> research

@@ -127,6 +127,49 @@ def _recent_history(shared: dict, n: int) -> str:
     ) or "No history yet."
 
 
+def _plan_context(shared: dict) -> str:
+    """Return a lookahead/lookback view of the plan, correctly bounded at borders.
+
+    Near the start: almost no completed steps, many remaining steps shown.
+    Near the end: few remaining steps (1-2), full history of completed steps.
+
+    The lookback window mirrors LOOKBACK env var; lookahead window mirrors it too
+    but is naturally capped by how many plan items remain.
+    """
+    plan = shared.get("plan", [])
+    if not plan:
+        return ""
+
+    lookback_n = int(os.environ.get("LOOKBACK", "3"))
+
+    done   = [t for t in plan if t.get("status") == "done"]
+    active = [t for t in plan if t.get("status") == "in_progress"]
+    pending = [t for t in plan if t.get("status") == "pending"]
+
+    lines = [f"## Research Plan ({len(done)}/{len(plan)} steps complete)"]
+
+    # Lookback: last min(lookback_n, len(done)) completed steps
+    shown_done = done[-lookback_n:] if done else []
+    if shown_done:
+        lines.append("### Completed (recent)")
+        for t in shown_done:
+            lines.append(f"  [x] {t['id']}. {t['task']}")
+        if len(done) > lookback_n:
+            lines.append(f"  ... ({len(done) - lookback_n} earlier steps)")
+
+    # Active step
+    for t in active:
+        lines.append(f"  [>] {t['id']}. {t['task']}  ← current")
+
+    # Lookahead: remaining steps (all of them — naturally shrinks to 1-2 near end)
+    if pending:
+        lines.append("### Upcoming")
+        for t in pending:
+            lines.append(f"  [ ] {t['id']}. {t['task']}")
+
+    return "\n".join(lines)
+
+
 def _run_code_blocks(text: str, skill_name: str, task_dir: Path, shared: dict) -> list[str]:
     """Execute %%BEGIN CODE:lang%% ... %%END CODE%% blocks."""
     for sub in ("data", "figures", "scripts"):
@@ -404,7 +447,81 @@ class Initializer(Node):
 
 
 # ===================================================================
-# 2. ResearchExecutor  — research loop
+# 2. PlanExecutor  — drafts structured todo list (feedforward control)
+# ===================================================================
+class PlanExecutor(Node):
+    def prep(self, shared):
+        return {
+            "topic": shared["topic"],
+            "report_type": shared.get("report_type", "Literature Review"),
+            "skill_index": shared["skill_index"],
+            "budget": shared.get("budget_remaining", 0),
+            "calls_left": estimate_calls_remaining(
+                shared.get("budget_remaining", 0),
+                cost_log=shared.get("cost_log", []),
+            ),
+        }
+
+    def exec(self, prep_res):
+        skills_list = "\n".join(f"- {k}: {v}" for k, v in sorted(prep_res["skill_index"].items()))
+        text, usage = call_llm(
+            f"""You are a research planning agent. Draft a concrete, ordered research plan.
+
+## Topic
+{prep_res["topic"]}
+
+## Report type: {prep_res["report_type"]}
+## Budget: ${prep_res["budget"]:.4f} (~{prep_res["calls_left"]} calls left)
+
+## Available skills
+{skills_list}
+
+Create a focused research plan: 3-7 steps, each using one skill.
+Prioritise breadth first (survey → analysis → synthesis).
+Fit within budget — fewer steps for small budgets.
+
+Return YAML list only:
+```yaml
+- id: 1
+  task: <one-line description of what this step produces>
+  skill: <skill-name>
+- id: 2
+  ...
+```""",
+            budget_remaining=prep_res["budget"],
+        )
+        return text, usage
+
+    def post(self, shared, prep_res, exec_res):
+        text, usage = exec_res
+        track_cost(shared, "plan:draft", usage)
+
+        parsed = parse_yaml_response(text)
+        if isinstance(parsed, list) and parsed:
+            plan = [
+                {"id": item.get("id", i + 1),
+                 "task": item.get("task", ""),
+                 "skill": item.get("skill", ""),
+                 "status": "pending"}
+                for i, item in enumerate(parsed)
+                if isinstance(item, dict) and item.get("task")
+            ]
+        else:
+            # Fallback: empty plan — ResearchExecutor will free-choose skills
+            plan = []
+
+        shared["plan"] = plan
+        if plan:
+            print(f"[PlanExecutor] {len(plan)}-step plan drafted:")
+            for t in plan:
+                print(f"  {t['id']}. [{t['skill']}] {t['task']}")
+        else:
+            print("[PlanExecutor] Could not parse plan — ResearchExecutor will choose freely.")
+        return "research"
+
+
+# ===================================================================
+# 3. ResearchExecutor  — research loop
 # ===================================================================
 class ResearchExecutor(Node):
     @property
@@ -415,6 +532,21 @@ class ResearchExecutor(Node):
         budget = shared.get("budget_remaining", 0)
         cost_log = shared.get("cost_log", [])
         scope = shared.get("revision_scope", {})
+        plan = shared.get("plan", [])
+
+        # Advance plan: mark first pending item as in_progress if nothing is active
+        active = [t for t in plan if t.get("status") == "in_progress"]
+        pending = [t for t in plan if t.get("status") == "pending"]
+        if not active and pending:
+            pending[0]["status"] = "in_progress"
+
+        # In scoped (revision) mode, suggest the revision skill from scope
+        scoped_skill = scope.get("target_skill", "") if scope.get("mode") == "research" else ""
+
+        # Determine suggested skill from plan (active item)
+        active_now = [t for t in plan if t.get("status") == "in_progress"]
+        plan_skill = active_now[0].get("skill", "") if active_now else ""
+
         return {
             "topic": shared["topic"],
             "budget": budget,
@@ -424,8 +556,10 @@ class ResearchExecutor(Node):
             "api_keys": format_available_keys(shared.get("api_keys", {})),
             "artifact_index": _artifact_index(shared),
             "history_text": _recent_history(shared, self.LOOKBACK),
+            "plan_context": _plan_context(shared),
+            "plan_skill": plan_skill,
             "skills_dir": shared["skills_dir"],
-            "scoped_skill": scope.get("target_skill", "") if scope.get("mode") == "research" else "",
+            "scoped_skill": scoped_skill,
         }
 
     def exec(self, prep_res):
@@ -438,6 +572,10 @@ class ResearchExecutor(Node):
             return {"action": "execute", "skill": prep_res["scoped_skill"],
                     "reason": "revision-directed"}, {"input_tokens": 0, "output_tokens": 0, "cost": 0}
 
+        plan_hint = (f"\n## Plan suggestion\nThe plan recommends: `{prep_res['plan_skill']}` next.\n"
+                     f"Follow it unless the artifacts clearly show a better gap to fill.\n"
+                     if prep_res["plan_skill"] else "")
+
         text, usage = call_llm(
             f"""You are an autonomous research agent. Choose the single best next action.
 
@@ -446,6 +584,8 @@ class ResearchExecutor(Node):
 
 ## Budget: ${prep_res["budget"]:.4f} (~{prep_res["calls_left"]} calls left)
 Reserve ${BUDGET_RESERVE:.2f} for writing + review.
+{plan_hint}
+{prep_res["plan_context"]}
 
 ## Available Skills
 {prep_res["skills"]}
@@ -490,6 +630,11 @@ Only choose skills whose required API keys are available.""",
             if skill and skill in shared.get("skill_index", {}):
                 print(f"[ResearchExecutor] → {skill}: {decision.get('reason','')}")
                 _run_skill(skill, shared)
+                # Mark matching plan item done
+                for t in shared.get("plan", []):
+                    if t.get("status") == "in_progress" and t.get("skill") == skill:
+                        t["status"] = "done"
+                        break
             else:
                 print(f"[ResearchExecutor] Unknown skill '{skill}', ending research.")
 
