@@ -685,6 +685,92 @@ The venue-templates skill provides:
 
 **Workflow**: First use this skill for general scientific writing principles (IMRAD, clarity, citations), then consult venue-templates for venue-specific style adaptation.
 
+## Advisor/Reviewer-Specific Style Rules
+
+When writing for a specific advisor or reviewer with known preferences, apply their rules as a final pass over any draft. The rules below are derived from direct feedback and override general defaults where they conflict.
+
+### Wang's Writing Style
+
+Wang's feedback reveals three core values in priority order: **Clarity** (can a reader scanning at normal speed understand immediately?), **Precision** (does every word have a concrete, verifiable referent?), **Flow** (does each sentence follow logically from the previous?).
+
+**1. Anti-AI-Writing Rules (Wang's harshest category)**
+
+Banned patterns and fixes:
+
+| Pattern | Fix |
+|---|---|
+| Em dashes | Commas or parentheses |
+| Semicolons in prose | Period, or ", while" / ", and" |
+| Self-claims / empty rhetoric ("This corpus provides the foundation for...") | Delete or state a fact |
+| Hyperbole: "comprehensive", "systematic", "robust", "novel" | State what was done |
+| Summary sentences (ending a paragraph by restating what was just described) | Merge into prior sentence or delete |
+| Transition filler ("To achieve it,", "In order to...") | Delete |
+| Vacuous openers ("This section characterizes how...") | Start with content |
+| ChatGPT vocabulary: "recurring", "leveraging", "facilitating", "delve", "landscape" | Plain equivalents: "common", "using" |
+| Spoken language ("Let's look at", "It turns out that", "Interestingly,") | Formal register |
+| Fancy vocabulary ("ubiquity", "paradigm", "multifaceted") | Directly say what you want to explain |
+| Consecutive paragraphs following the same structure | Vary paragraph structure |
+
+**2. Precision Rules**
+
+- **Define terms at first use** — in the same sentence, not a later one. Applies to acronyms, method names, shorthand labels, and appendix-only terms.
+- **No vague quantifiers** — never "some," "a few," "several," "most" without a number. Bold headers are the strictest zone.
+- **No invented groupings** without defining them and listing exactly which categories they contain.
+- **Consistent terminology with tables** — every term in text must match its exact table name. No synonyms.
+- Use `\textit{}` for root cause names and taxonomy terms.
+
+**3. Logical Flow Rules**
+
+- **Rule before exception** — establish the normal pattern before the exception. Bad: "Interactive Agent Simulators are the only group where X exceeds Y." Good: "In three of four archetypes, X ranks first. Interactive Agent Simulators are the exception."
+- **Bold headers are a sequential contract** — whatever appears first in the bold is what the reader expects developed first. In an "A, but B" header, the more concrete clause captures attention; if the paragraph's real point is B, make A deliberately vague and B concrete.
+- **Explanation before numbers** — state the why, then cite the numbers as evidence.
+- **Don't bounce topics** — discuss each entity in one place; don't scatter mentions across sentences in different roles.
+- **Parallel structure** — when listing items, keep the same grammatical form throughout.
+- **Summaries must be balanced** — state the general pattern first, then the exception.
+- **Pronouns must be unambiguous** — if the reader must re-read to find the referent of "this" or "the gap," use the actual noun.
+
+**4. Numbers**
+
+- Max 4–5 percentages per paragraph; report notable extremes and skip the middle.
+- Every numeric comparison needs a practical implication — numbers without interpretation are a data dump.
+- No interpretive leaps from a single percentage; use hedged language ("may reflect," "consistent with").
+- **No implications in results sections** — results report what was observed; all prescriptive content goes in the Implications section. Test: does the sentence tell the reader what to *do*? If yes and you're in results, rewrite as what the data *shows*.
+- Implications must follow a three-layer structure: **finding** (cite result with numbers) → **characterization** (what makes this finding distinctive vs. what SE already knows) → **SE research connection** (name the relevant concept/literature and state the open question it motivates). Avoid "finding → advice" patterns that a TSE reviewer would find obvious without an empirical study.
+- No unmeasured quantities — don't infer "cost," "overhead," or "burden" from issue counts.
+
+**5. Structure**
+
+- Bold headers state the takeaway, not the data — move percentages and codes to supporting text.
+- Finding titles: plain subject-verb-object, no compound abstract phrasing.
+- No redundancy — no finding title + bold header overlap; merge duplicate paragraphs.
+- Top-down then synthesize: lead with the cross-resolution pattern, then support with evidence.
+- Finding box bullets: standalone claims ending with periods, 2–3 rendered lines max, no "for example" phrasing.
+
+**6. Methodology and Formatting**
+
+- Every technique must cite its foundational reference.
+- State real motivations, not generic framing.
+- Operationalize every claim (saturation criterion, merge rationale, duplicate handling, inference settings).
+- Introduction must end with a paper organization paragraph.
+- No semicolons in running prose (allowed only inside numbered enumerations).
+- List style: "(1) item one, (2) item two, and (3) item three."
+
+**Quick Checklist (Wang)**
+
+- [ ] No em dashes, semicolons, ChatGPT vocabulary, spoken language, or fancy words
+- [ ] Every term defined at first use; no vague quantifiers; no invented groupings
+- [ ] Exact table names used everywhere; `\textit{}` for root cause names
+- [ ] Rule before exception; bold headers match paragraph content and develop claims in order
+- [ ] Explanation before numbers; max 4–5 percentages per paragraph
+- [ ] Every comparison has a "so what"; no implications in results sections
+- [ ] Each implication follows finding → characterization → SE research connection
+- [ ] No duplicate sentences; no finding title / bold header overlap
+- [ ] Finding box bullets are standalone claims, 2–3 lines max, with periods
+- [ ] Every methodology cites prior work; every data gap explained
+- [ ] Full start-to-end read completed
+
+---
+
 ## References
 
 This skill includes comprehensive reference files covering specific aspects of scientific writing:

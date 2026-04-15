@@ -11,7 +11,7 @@ import argparse
 import sys
 
 from pathlib import Path
-from src.utils import init_env, load_skill_index, detect_api_keys
+from src.utils import init_env, load_skill_index, filter_skill_index, detect_api_keys
 from src.flow import create_scientist_flow
 
 # Resolve project paths
@@ -32,7 +32,6 @@ def run(topic: str, budget: float, output_dir: str):
     """Run the autonomous scientist flow."""
     # Load lightweight skill index (descriptions only, not full SKILL.md)
     skill_index = load_skill_index(str(SKILLS_DIR))
-    print(f"Loaded {len(skill_index)} skills from skills.json")
 
     # Detect available API keys so the scientist knows its capabilities
     api_keys = detect_api_keys()
@@ -41,6 +40,10 @@ def run(topic: str, budget: float, output_dir: str):
     print(f"API keys available: {', '.join(available) if available else 'NONE'}")
     if missing:
         print(f"API keys missing: {', '.join(missing)}")
+
+    # Filter out skills whose required API keys are not available
+    skill_index = filter_skill_index(str(SKILLS_DIR), skill_index, api_keys)
+    print(f"Loaded {len(skill_index)} skills (after filtering unavailable)")
 
     # Initialize shared store
     shared = {

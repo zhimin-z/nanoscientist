@@ -540,6 +540,56 @@ Slide 18: Alignment - title not centered
 
 **Remember:** For presentations, the visual inspection via images is MANDATORY. Never attempt to read presentation PDFs as text - it will fail and miss all visual formatting issues.
 
+### Stage 8: Devil's Advocate Review
+
+After balanced evaluation, stress-test the paper by constructing the strongest possible case *against* it. This is distinct from balanced review — the goal is to find every weakness a hostile reviewer might attack.
+
+**Scope** (DA only — do not duplicate other stages):
+- **Logical consistency** — internal contradictions, circular reasoning, non sequiturs
+- **Evidence gaps** — central claims resting on thin or single-lab evidence
+- **Strongest counter-argument** — the best rival explanation for the findings
+- **Confirmation bias** — selective citation, predetermined conclusions, favorable interpretation
+
+**What constitutes a CRITICAL DA finding** (must meet at least one):
+1. A core assumption is demonstrably false or unsubstantiated by the authors' own data
+2. The main conclusion does not follow from the evidence even if the evidence is valid
+3. The data actively contradicts the stated conclusion
+4. A simpler alternative explanation better fits the presented data
+
+**Eight challenge dimensions:**
+1. **Core Thesis** — strongest counter-argument; value if thesis fails; more parsimonious alternative?
+2. **Cherry-Picking** — citation bias toward supporting studies; survivorship bias?
+3. **Confirmation Bias** — conclusions predetermined; methodology favors expected results?
+4. **Logic Chain** — hidden assumptions; causal inference supported; logical leaps?
+5. **Overgeneralization** — scope of inference exceeds data; sample limits applicability?
+6. **Alternative Paths** — overlooked alternatives to proposed solution/theory?
+7. **Stakeholder Blind Spots** — missing perspectives; implicit power-structure bias?
+8. **"So What?" Test** — actual impact if conclusions are correct; incremental contribution sufficient?
+
+**Output format:**
+
+```markdown
+## Devil's Advocate Review
+
+### Strongest Counter-Argument
+[200-300 words. If you held the opposite view, how would you refute this paper?]
+
+### Issue List
+| Severity | # | Dimension | Issue | Location |
+|----------|---|-----------|-------|----------|
+
+### Ignored Alternative Explanations
+1. [Alternative A — why it may better fit the data]
+2. [Alternative B — ...]
+
+### Observations (Non-Defects)
+- [Observation 1]
+```
+
+**Discipline:** Attack arguments, not authors. Every CRITICAL/MAJOR issue must affect the core argument. Begin with 1–2 sentences acknowledging what the paper does well. Cite specific passages for every issue.
+
+---
+
 ## Resources
 
 This skill includes reference materials to support comprehensive peer review:

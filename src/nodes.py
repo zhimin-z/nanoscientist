@@ -20,6 +20,7 @@ from pocketflow import Node
 
 from .utils import (
     call_llm,
+    call_llm_with_tools,
     format_skill_index,
     format_available_keys,
     load_skill_content,
@@ -87,13 +88,16 @@ def _report_type(budget: float) -> str:
     return "Full Paper"
 
 
+def _section_order(shared: dict) -> list[str]:
+    return SECTION_ORDER.get(shared.get("report_type", "Literature Review"),
+                              SECTION_ORDER["Literature Review"])
+
+
 def _required_sections(shared: dict) -> list[str]:
-    order = SECTION_ORDER.get(shared.get("report_type", "Literature Review"),
-                               SECTION_ORDER["Literature Review"])
     has_methods = any(k in shared.get("artifacts", {})
                       for k in ("statistical-analysis", "method-implementation",
                                 "experimental-evaluation"))
-    return [s for s in order if s not in ("methods", "results") or has_methods]
+    return [s for s in _section_order(shared) if s not in ("methods", "results") or has_methods]
 
 
 def _artifact_index(shared: dict) -> str:
@@ -237,32 +241,36 @@ Return YAML list only:
         instruction = s.get("instruction", "Execute the full skill.")
         needs_code = bool(s.get("needs_code")) and can_execute
 
-        code_block = ""
-        if needs_code:
-            scripts_note = f"Available scripts: {', '.join(available_scripts)}\n" if available_scripts else ""
-            data_note = f"Existing files: {', '.join(data_files[:8])}\n" if data_files else ""
-            code_block = (f"\n## Code execution\nWorking dir: {shared['output_path']}\n"
-                          f"{scripts_note}{data_note}"
-                          "Save data → `data/`, figures → `figures/`. Relative paths. No plt.show().\n\n"
-                          "%%BEGIN CODE:python%%\n# focused code\n%%END CODE%%")
-
-        step_text, step_usage = call_llm(
-            f"""Execute this single research step. Be focused and concise.
+        step_prompt = f"""Execute this single research step. Be focused and concise.
 
 ## Topic: {shared["topic"]}
 ## Step: {instruction}
 ## Recent context: {_recent_history(shared, 5)}
-{code_block}
-Produce output, then append citations:
+## Working directory: {shared["output_path"]}
+
+Save data → `data/`, figures → `figures/` (relative paths). No plt.show().
+After completing the step, summarise findings and append any citations:
 
 %%BEGIN BIBTEX%%
 @article{{key, author={{...}}, title={{...}}, journal={{...}}, year={{YYYY}}}}
-%%END BIBTEX%%""",
-            budget_remaining=shared.get("budget_remaining", 0))
-        track_cost(shared, f"research:step:{skill_name}", step_usage)
+%%END BIBTEX%%"""
 
-        code_outputs = (_run_code_blocks(step_text, skill_name, out_dir, shared)
-                        if needs_code else [])
+        if needs_code:
+            # Use tool-calling loop: model drives bash execution with error feedback.
+            step_text, step_usage = call_llm_with_tools(
+                step_prompt,
+                budget_remaining=shared.get("budget_remaining", 0),
+                cwd=shared["output_path"],
+            )
+            code_outputs = []  # execution happened inside the tool loop
+        else:
+            step_text, step_usage = call_llm(
+                step_prompt,
+                budget_remaining=shared.get("budget_remaining", 0),
+            )
+            code_outputs = []
+
+        track_cost(shared, f"research:step:{skill_name}", step_usage)
         _save_artifact(step_text, skill_name, f"step{s.get('step',1)}",
                        code_outputs, step_usage, shared)
         print(f"[ResearchExecutor] {skill_name}/step{s.get('step',1)} done. "
@@ -345,8 +353,7 @@ def _write_section(section: str, shared: dict):
 
 def _assemble_tex(shared: dict):
     """Assemble report.tex + references.bib from written sections."""
-    order = SECTION_ORDER.get(shared.get("report_type", "Literature Review"),
-                               SECTION_ORDER["Literature Review"])
+    order = _section_order(shared)
     body = "\n\n".join(shared["section_bodies"].get(s, "")
                        for s in order if s in shared["section_bodies"] and s != "abstract")
     abstract = re.sub(r"\\section\{[Aa]bstract\}\s*", "",
@@ -406,11 +413,13 @@ class ResearchExecutor(Node):
 
     def prep(self, shared):
         budget = shared.get("budget_remaining", 0)
+        cost_log = shared.get("cost_log", [])
         scope = shared.get("revision_scope", {})
         return {
             "topic": shared["topic"],
             "budget": budget,
-            "calls_left": estimate_calls_remaining(budget),
+            "cost_log": cost_log,
+            "calls_left": estimate_calls_remaining(budget, cost_log=cost_log),
             "skills": format_skill_index(shared["skill_index"]),
             "api_keys": format_available_keys(shared.get("api_keys", {})),
             "artifact_index": _artifact_index(shared),
@@ -461,7 +470,11 @@ or
 action: done
 reason: <why research is complete>
 ```
-Rules: choose `done` when topic is well covered or budget nears reserve.
+Rules:
+- Choose `done` (early stop) if research quality is already sufficient: key concepts covered,
+  enough citations gathered, no obvious gaps remaining — even if budget is not exhausted.
+- Choose `done` when budget nears reserve (${BUDGET_RESERVE:.2f} remaining).
+- Otherwise choose `execute` with the skill that fills the biggest remaining gap.
 Only choose skills whose required API keys are available.""",
             budget_remaining=budget)
         parsed = parse_yaml_response(text)
@@ -497,13 +510,15 @@ Only choose skills whose required API keys are available.""",
 class WritingExecutor(Node):
     def prep(self, shared):
         budget = shared.get("budget_remaining", 0)
+        cost_log = shared.get("cost_log", [])
         required = _required_sections(shared)
         remaining = [s for s in required if s not in shared.get("sections_written", [])]
         scope = shared.get("revision_scope", {})
         return {
             "topic": shared["topic"],
             "budget": budget,
-            "calls_left": estimate_calls_remaining(budget),
+            "cost_log": cost_log,
+            "calls_left": estimate_calls_remaining(budget, cost_log=cost_log),
             "report_type": shared.get("report_type", "Literature Review"),
             "required": required,
             "remaining": remaining,
@@ -781,7 +796,7 @@ Common fixes: escape %, &, #, $, _; close environments; fix undefined commands."
 
         out_dir = Path(shared["output_path"])
         if prep_res["mode"] == "citation":
-            new_entries = [e.strip() for e in re.findall(r"(@\w+\{[^@]+)", cleaned, re.DOTALL) if e.strip()]
+            _, new_entries = extract_bibtex(cleaned)
             if new_entries:
                 combined = dedup_bibtex(shared.get("bibtex_entries", []) + new_entries)
                 (out_dir / "references.bib").write_text(combined, encoding="utf-8")
@@ -800,12 +815,6 @@ Common fixes: escape %, &, #, $, _; close environments; fix undefined commands."
 # 8. Finisher  — persist summary, print report
 # ===================================================================
 class Finisher(Node):
-    def prep(self, shared):
-        return shared
-
-    def exec(self, prep_res):
-        return None
-
     def post(self, shared, prep_res, exec_res):
         from datetime import datetime, timezone
         total = sum(e["cost"] for e in shared.get("cost_log", []))

@@ -52,8 +52,7 @@ LaTeX compilation runs **exactly once**, as the final PDF generation step.
 | `REVIEW_RESERVE` | $0.008 | skip revision if below |
 
 ## Environment
-Required: `OPENROUTER_API_KEY`, `HF_TOKEN`, `GITHUB_TOKEN`.
-Optional: `PERPLEXITY_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GITLAB_TOKEN`.
+Required: `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, `HF_TOKEN`, `GITHUB_TOKEN`.
 Inference: `MODEL_NAME`, `INFERENCE_BASE_URL`, `INPUT_TOKEN_COST_PER_MILLION`, `OUTPUT_TOKEN_COST_PER_MILLION`.
 Agent: `LOOKBACK` (default 3), `MAX_REVIEW_ROUNDS` (default 1).
 

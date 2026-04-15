@@ -131,16 +131,16 @@ Skills that require code execution declare `allowed-tools: Bash` in their frontm
 
 ## Environment variables
 
-| Variable | Required | Used for |
-|---|---|---|
-| `OPENROUTER_API_KEY` | **Yes** | Core LLM inference (all nodes) |
-| `HF_TOKEN` | **Yes** | `tooluniverse` (Hugging Face model/dataset discovery) |
-| `GITHUB_TOKEN` | **Yes** | `github-mining` (code/repo search) |
-| `PERPLEXITY_API_KEY` | Recommended | `research-lookup` real-time web search |
-| `ANTHROPIC_API_KEY` | Optional | Claude models via OpenRouter |
-| `OPENAI_API_KEY` | Optional | OpenAI models, `paper-2-web` |
+All four variables are required:
 
-Copy `.env.example` and fill in what you have. Skills that need a missing key are automatically skipped.
+| Variable | Used for |
+|---|---|
+| `OPENROUTER_API_KEY` | Core LLM inference (all nodes) |
+| `HF_TOKEN` | `tooluniverse` (Hugging Face discovery) |
+| `GITHUB_TOKEN` | `github-mining` (code/repo search) |
+| `OPENAI_API_KEY` | OpenAI models, `paper-2-web` |
+
+Copy `.env.example` to `.env` and fill in all four keys.
 
 ## Project layout
 

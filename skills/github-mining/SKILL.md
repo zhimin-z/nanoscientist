@@ -2,6 +2,7 @@
 name: github-mining
 description: "Mine GitHub repositories using the GraphQL API (v4) for empirical software engineering research. Collect commits, issues, pull requests, contributors, and repository statistics in fewer API calls with precise field selection. Falls back to REST API for statistics endpoints. Supports cursor-based pagination, rate-limit handling, and structured data collection."
 allowed-tools: [Read, Write, Edit, Bash]
+required-keys: [GITHUB_TOKEN]
 license: MIT license
 metadata:
     skill-author: K-Dense Inc.

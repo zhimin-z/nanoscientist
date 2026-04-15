@@ -37,9 +37,7 @@ API_KEY_REGISTRY = {
     "HF_TOKEN":           "[REQUIRED] Hugging Face Hub — needed for tooluniverse skill (model/dataset discovery); without this key tooluniverse cannot be used",
     "GITHUB_TOKEN":       "[REQUIRED] GitHub API — needed for github-mining skill (code/repo search); without this key github-mining cannot be used",
     # --- OPTIONAL ---
-    "PERPLEXITY_API_KEY": "Perplexity Sonar real-time web search — used by research-lookup for up-to-date citations",
-    "ANTHROPIC_API_KEY":  "Anthropic Claude models via OpenRouter",
-    "OPENAI_API_KEY":     "OpenAI models and paper-2-web HTML export",
+    "OPENAI_API_KEY":     "Required by paper-2-web (HTML/video/poster export)",
 }
 
 
@@ -92,8 +90,22 @@ def count_tokens(text: str) -> int:
     return int(len(text.split()) * 1.3)
 
 
-def estimate_calls_remaining(budget_remaining: float, avg_prompt_tokens: int = 500, avg_output_tokens: int = 300) -> int:
-    """Estimate how many LLM calls remain given current budget."""
+def estimate_calls_remaining(
+    budget_remaining: float,
+    cost_log: list = None,
+    avg_prompt_tokens: int = 500,
+    avg_output_tokens: int = 300,
+) -> int:
+    """Estimate how many LLM calls remain given current budget.
+
+    If cost_log is provided, derives the average cost-per-call from actual
+    observed usage rather than the hardcoded defaults.
+    """
+    if cost_log:
+        real_calls = [e for e in cost_log if e.get("input_tokens", 0) > 0]
+        if real_calls:
+            avg_prompt_tokens = int(sum(e["input_tokens"] for e in real_calls) / len(real_calls))
+            avg_output_tokens = int(sum(e["output_tokens"] for e in real_calls) / len(real_calls))
     cost_per_call = (
         avg_prompt_tokens * _get_input_cost() / 1_000_000
         + avg_output_tokens * _get_output_cost() / 1_000_000
@@ -107,9 +119,11 @@ def estimate_calls_remaining(budget_remaining: float, avg_prompt_tokens: int = 5
 _SYSTEM_PROMPT_TEMPLATE = (
     "You are an autonomous research assistant. "
     "Your final goal is to generate a high-quality technical report on the assigned topic. "
-    "Budget remaining: ${budget:.4f} (~{calls} calls left at current rate). "
+    "~{calls} LLM calls remaining. "
     "Be concise and prioritise information density. "
-    "Every token costs money — avoid padding, repetition, or lengthy preambles."
+    "Every token costs money — avoid padding, repetition, or lengthy preambles. "
+    "IMPORTANT: Respond with plain text only. Do NOT use tool calls, function calls, "
+    "XML tags, or any structured invocation syntax. Write your answer directly as text."
 )
 
 
@@ -133,6 +147,8 @@ def call_llm(
     prompt: str,
     system: str = None,
     budget_remaining: float = None,
+    allow_tools: bool = False,
+    cost_log: list = None,
 ) -> tuple[str, dict]:
     """Call the LLM and return (response_text, usage_dict).
 
@@ -140,14 +156,16 @@ def call_llm(
     appended after the injected preamble so callers can still pass node-
     specific instructions.
 
+    allow_tools: set True only for skill execution steps where the model
+    may legitimately invoke tools (e.g. Bash, web search). All planning,
+    writing, and review calls must leave this False so tool-calling models
+    respond with plain text instead of tool invocations.
+
     usage_dict keys: input_tokens, output_tokens, cost, estimated_input_tokens
     """
     # Build system message with budget context
-    calls_left = estimate_calls_remaining(budget_remaining or 0)
-    budget_ctx = _SYSTEM_PROMPT_TEMPLATE.format(
-        budget=budget_remaining or 0.0,
-        calls=calls_left,
-    )
+    calls_left = estimate_calls_remaining(budget_remaining or 0, cost_log=cost_log)
+    budget_ctx = _SYSTEM_PROMPT_TEMPLATE.format(calls=calls_left)
     full_system = budget_ctx
     if system:
         full_system = budget_ctx + "\n\n" + system
@@ -161,12 +179,32 @@ def call_llm(
         {"role": "user", "content": prompt},
     ]
 
-    response = client.chat.completions.create(
-        model=_get_model(),
-        messages=messages,
-    )
+    kwargs = {"model": _get_model(), "messages": messages}
+    if not allow_tools:
+        kwargs["tool_choice"] = "none"
 
-    text = response.choices[0].message.content or ""
+    try:
+        response = client.chat.completions.create(**kwargs)
+    except Exception as e:
+        # Some backends reject tool_choice="none" when no tools are defined.
+        if not allow_tools and ("tool_choice" in str(e).lower() or getattr(getattr(e, "response", None), "status_code", None) == 400):
+            response = client.chat.completions.create(model=_get_model(), messages=messages)
+        else:
+            raise
+
+    choice = response.choices[0]
+    text = choice.message.content or ""
+    if not allow_tools:
+        # Planning/writing calls must not contain tool invocations — strip any that leaked.
+        if not text and choice.message.tool_calls:
+            # Model ignored tool_choice; salvage argument blobs as raw text.
+            text = "\n".join(
+                tc.function.arguments for tc in choice.message.tool_calls
+                if tc.function and tc.function.arguments
+            )
+        # Strip XML-style tool-call tags some models bleed into content (e.g. minimax).
+        text = re.sub(r"<[a-zA-Z0-9_:]+:tool_call>.*?</[a-zA-Z0-9_:]+:tool_call>", "", text, flags=re.DOTALL)
+        text = re.sub(r"</?[a-zA-Z0-9_:]+:tool_call[^>]*>", "", text)
     usage = response.usage
     input_tokens = usage.prompt_tokens if usage else est_input
     output_tokens = usage.completion_tokens if usage else count_tokens(text)
@@ -180,6 +218,158 @@ def call_llm(
         "output_tokens": output_tokens,
         "cost": cost,
         "estimated_input_tokens": est_input,
+    }
+
+
+# Tool definition exposed to the model for Bash execution
+_BASH_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "bash",
+        "description": "Execute a bash or python command in the task working directory. Use for data collection, computation, file I/O, and API calls.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "command": {
+                    "type": "string",
+                    "description": "The shell command to run.",
+                },
+                "timeout": {
+                    "type": "integer",
+                    "description": "Timeout in seconds (default 60, max 300).",
+                    "default": 60,
+                },
+            },
+            "required": ["command"],
+        },
+    },
+}
+
+
+def _execute_tool_call(tool_name: str, arguments: dict, cwd: str) -> str:
+    """Execute a model-requested tool call and return its output as a string."""
+    import subprocess
+    if tool_name == "bash":
+        command = arguments.get("command", "")
+        timeout = min(int(arguments.get("timeout", 60)), 300)
+        try:
+            r = subprocess.run(
+                command, shell=True, cwd=cwd,
+                capture_output=True, text=True,
+                errors="replace", timeout=timeout,
+                env={**os.environ},
+            )
+            out = r.stdout[:4000]
+            err = r.stderr[:1000]
+            result = f"exit={r.returncode}"
+            if out:
+                result += f"\n{out}"
+            if err:
+                result += f"\n[stderr] {err}"
+            return result
+        except subprocess.TimeoutExpired:
+            return f"[ERROR] Command timed out after {timeout}s"
+        except Exception as e:
+            return f"[ERROR] {e}"
+    return f"[ERROR] Unknown tool: {tool_name}"
+
+
+def call_llm_with_tools(
+    prompt: str,
+    system: str = None,
+    budget_remaining: float = None,
+    cwd: str = ".",
+    max_tool_rounds: int = 8,
+    cost_log: list = None,
+) -> tuple[str, dict]:
+    """Call the LLM with Bash tool access and feed execution results back until done.
+
+    The model may call the bash tool repeatedly. Each result is appended to the
+    conversation so the model can react to errors and retry. The loop ends when
+    the model stops calling tools or max_tool_rounds is reached.
+
+    Returns (final_text, aggregated_usage_dict).
+    """
+    calls_left = estimate_calls_remaining(budget_remaining or 0, cost_log=cost_log)
+    budget_ctx = _SYSTEM_PROMPT_TEMPLATE.format(calls=calls_left)
+    full_system = budget_ctx
+    if system:
+        full_system = budget_ctx + "\n\n" + system
+
+    client = get_client()
+    messages = [
+        {"role": "system", "content": full_system},
+        {"role": "user", "content": prompt},
+    ]
+
+    total_input = count_tokens(full_system) + count_tokens(prompt)
+    total_output = 0
+    total_cost = 0.0
+    final_text = ""
+
+    for round_i in range(max_tool_rounds):
+        try:
+            response = client.chat.completions.create(
+                model=_get_model(),
+                messages=messages,
+                tools=[_BASH_TOOL],
+                tool_choice="auto",
+            )
+        except Exception as e:
+            # Backend doesn't support tools — fall back to plain call_llm
+            if "tool" in str(e).lower() or getattr(getattr(e, "response", None), "status_code", None) == 400:
+                plain_text, plain_usage = call_llm(prompt, system=system, budget_remaining=budget_remaining)
+                return plain_text, plain_usage
+            raise
+
+        usage = response.usage
+        if usage:
+            total_input += usage.prompt_tokens
+            total_output += usage.completion_tokens
+            total_cost += (
+                usage.prompt_tokens * _get_input_cost() / 1_000_000
+                + usage.completion_tokens * _get_output_cost() / 1_000_000
+            )
+
+        choice = response.choices[0]
+        msg = choice.message
+
+        # Accumulate any text content
+        if msg.content:
+            final_text = msg.content
+
+        # If no tool calls, model is done
+        if not msg.tool_calls:
+            break
+
+        # Append assistant message (with tool_calls) to history
+        messages.append(msg)
+
+        # Execute each tool call and append results
+        tool_results = []
+        for tc in msg.tool_calls:
+            try:
+                args = json.loads(tc.function.arguments)
+            except (json.JSONDecodeError, AttributeError):
+                args = {}
+            output = _execute_tool_call(tc.function.name, args, cwd)
+            print(f"[tool:{tc.function.name}] {str(args.get('command',''))[:60]} → {output[:80]}")
+            tool_results.append({
+                "role": "tool",
+                "tool_call_id": tc.id,
+                "content": output,
+            })
+
+        messages.extend(tool_results)
+
+        if round_i == max_tool_rounds - 1:
+            print(f"[call_llm_with_tools] Reached max_tool_rounds={max_tool_rounds}, stopping.")
+
+    return final_text, {
+        "input_tokens": total_input,
+        "output_tokens": total_output,
+        "cost": total_cost,
+        "estimated_input_tokens": total_input,
     }
 
 
@@ -199,6 +389,33 @@ def load_skill_index(skills_dir: str) -> dict[str, str]:
     if not index:
         raise ValueError(f"No skills found in {index_path}")
     return index
+
+
+def filter_skill_index(skills_dir: str, index: dict[str, str], api_keys: dict[str, bool]) -> dict[str, str]:
+    """Remove skills whose required-keys are not available.
+
+    Reads each SKILL.md frontmatter (only the first few lines) to check
+    required-keys. Skills with no required-keys are always included.
+    """
+    filtered = {}
+    for skill_id, desc in index.items():
+        skill_file = Path(skills_dir) / skill_id / "SKILL.md"
+        required = []
+        if skill_file.exists():
+            raw = skill_file.read_text(encoding="utf-8")
+            fm = re.match(r'^---\s*\n(.*?)\n---\s*\n', raw, re.DOTALL)
+            if fm:
+                try:
+                    meta = yaml.safe_load(fm.group(1)) or {}
+                    keys = meta.get("required-keys", [])
+                    if isinstance(keys, str):
+                        keys = [k.strip() for k in keys.split(",")]
+                    required = keys
+                except yaml.YAMLError:
+                    pass
+        if all(api_keys.get(k) for k in required):
+            filtered[skill_id] = desc
+    return filtered
 
 
 def load_skill_content(skills_dir: str, skill_name: str) -> tuple[str, dict]:
@@ -228,6 +445,12 @@ def load_skill_content(skills_dir: str, skill_name: str) -> tuple[str, dict]:
     if isinstance(tools, str):
         tools = [t.strip() for t in tools.split(",")]
     metadata["allowed-tools"] = tools
+
+    # Normalize required-keys to a list of strings
+    keys = metadata.get("required-keys", [])
+    if isinstance(keys, str):
+        keys = [k.strip() for k in keys.split(",")]
+    metadata["required-keys"] = keys
 
     return content.strip(), metadata
 
