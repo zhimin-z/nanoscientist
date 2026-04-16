@@ -380,7 +380,8 @@ Return YAML list only:
 ## Topic: {shared["topic"]}
 ## Step: {instruction}
 ## Recent context: {_recent_history(shared, 5)}
-## Working directory (ABSOLUTE): {abs_out}{mcp_block}
+## Working directory (ABSOLUTE): {abs_out}
+## Environment: All API keys (OPENROUTER_API_KEY, PERPLEXITY_API_KEY, GITHUB_TOKEN, HF_TOKEN, OPENAI_API_KEY, etc.) are pre-loaded from .env and available as environment variables — use them directly in bash commands without reading .env yourself.{mcp_block}
 
 CRITICAL working-directory rules:
 - ALL bash commands run inside {abs_out} — this is enforced by the shell.
