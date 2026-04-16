@@ -228,7 +228,7 @@ nano-scientist/
 If you use Nano-scientist in your research, please cite:
 
 ```bibtex
-@software{nano-scientist2026,
+@software{nano_scientist2026,
   title  = {Nano-scientist: Autonomous Research Agent for Budget-Constrained Scientific Reports},
   author = {{AI4Scientist Team}},
   year   = {2026},
