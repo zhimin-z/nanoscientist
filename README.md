@@ -131,11 +131,12 @@ outputs/
 ## 🖥️ CLI reference
 
 ```text
-python main.py <topic> [options]
+python main.py [topic] [options]
 
 Arguments:
   topic                 Research topic — either a plain string or a path to a
-                        .md file whose content is read as the topic
+                        .md file whose content is read as the topic.
+                        Optional when using --list-skills.
 
 Options:
   -b, --budget FLOAT    Spend limit in USD  (default: $5.00)
