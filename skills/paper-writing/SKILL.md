@@ -108,6 +108,15 @@ Three key questions to answer:
 Ablation studies need: one big table (core contributions) + several small tables (design choices, hyperparameters).
 See [references/experiments-guide.md](references/experiments-guide.md)
 
+**Hyperparameter reporting rule**: Report only the final chosen values and a one-sentence justification. Never describe the full tuning search, grid sweep, or intermediate trial results — this bloats the paper without adding insight.
+
+**Visualization rules**:
+- All charts and plots MUST use **seaborn** or **plotly** — never bare matplotlib with default styles.
+- Never use single-color bar charts. Assign a distinct color to each category or group.
+- Prefer multi-color palettes (e.g., `seaborn.color_palette("tab10")`) for categorical comparisons.
+
+**Table consistency rule**: All tables in the paper must use a consistent column count and font size. Wildly different table widths/sizes break reading flow. Use `\resizebox{\textwidth}{!}{...}` for wide tables to normalize width.
+
 ### Related Work
 
 Three-step process:
@@ -122,6 +131,7 @@ See [references/related-work-guide.md](references/related-work-guide.md)
 - Must include **Limitation** section (reviewers frequently cite "no limitation" as a weakness)
 - Limitation = task goal / setting limitations (like future work), NOT technical defects
 - Rule: "If our method does not fall below current SOTA metrics, it is not a technical defect"
+- **Section order rule**: Conclusion MUST be the final section. No content section may appear after it (an explicit Appendix is the only allowed exception).
 
 ### Supplementary Material
 

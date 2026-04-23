@@ -142,11 +142,30 @@ The teaser (usually Figure 1) shows the key result at a glance:
 
 Most papers benefit from a **study workflow diagram** — a high-level figure showing the overall research design (data collection → preprocessing → method → evaluation). This is distinct from the pipeline figure (which shows the technical method) and often appears as Figure 1 or in the Experiments section.
 
-To generate a polished workflow diagram as an image, use the `gpt-image-2` skill: provide a plain-text description of the workflow stages and it will produce a PNG suitable for inclusion in the paper. See [skills/gpt-image-2/SKILL.md](../gpt-image-2/SKILL.md) for CLI usage and prompt-craft references.
+The pipeline automatically generates `figures/workflow.png` via the `gpt-image-2` skill before assembly, using the executed plan steps as the prompt. The prompt describes two swim-lanes (Research and Writing) derived from the actual plan. No manual invocation is needed.
+
+To manually generate or regenerate a custom workflow diagram, invoke the `gpt-image-2` skill directly: provide a plain-text description of the workflow stages and it will produce a PNG suitable for inclusion in the paper. Use `--size 1536x1024` for landscape orientation. See [skills/gpt-image-2/SKILL.md](../gpt-image-2/SKILL.md) for CLI usage and prompt-craft references.
 
 ### Visual Quality Matters
 
 Visual polish directly influences review outcomes. See [references/figure-design.md](references/figure-design.md) for the full visual quality guide (pipeline figures, tables, typography)
+
+**Visualization constraints** (enforced at writing time):
+- All charts/plots use **seaborn** or **plotly** only — no plain matplotlib default styles.
+- Single-color bar charts are forbidden. Use a distinct color per category/group (e.g., `seaborn.color_palette("tab10")`).
+- All tables must maintain consistent column count and font size across the paper. Use `\resizebox{\textwidth}{!}{...}` to normalize wide tables.
+- Hyperparameter details: report only final values + 1-sentence justification. Omit tuning grids and search trajectories.
+
+### LaTeX Formatting Standards
+
+The generated LaTeX skeleton includes `float`, `microtype`, `url`, and `hyperref` with `breaklinks`. Writing agents must follow these rules to prevent compilation errors and overflow:
+
+- **Figures**: use `[htbp]` placement, `\includegraphics[width=0.9\textwidth]{figures/<name>}`, self-contained caption, `\label{fig:...}`
+- **Wide tables**: wrap with `\resizebox{\textwidth}{!}{...}` around the `tabular` environment
+- **URLs**: always use `\url{...}` — bare URLs cause overflow and compilation warnings
+- **Special characters**: escape `%`, `&`, `#`, `$`, `_` outside math mode
+- **No preamble in sections**: section bodies must start with `\section{...}` — never include `\documentclass`, `\usepackage`, or `\begin{document}`
+- **No bibliography in sections**: `\bibliography`, `\bibliographystyle`, `\begin{thebibliography}` are handled by the skeleton
 
 ---
 

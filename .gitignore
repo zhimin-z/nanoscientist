@@ -48,6 +48,7 @@ MANIFEST
 # Research outputs (generated artifacts)
 outputs
 examples
+.ruff_cache
 
 # OS
 .DS_Store

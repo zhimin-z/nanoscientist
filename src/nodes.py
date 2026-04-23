@@ -11,6 +11,7 @@ ReviewExecutor appends new steps to the plan tail for revision.
 LaTeX compilation happens exactly once, as the final PDF generation step.
 """
 
+import asyncio
 import json
 import os
 import re
@@ -104,7 +105,10 @@ LATEX_SKELETON = r"""\documentclass[11pt]{article}
 \usepackage{graphicx}
 \graphicspath{{./figures/}}
 \usepackage{booktabs}
-\usepackage{hyperref}
+\usepackage{float}
+\usepackage{microtype}
+\usepackage[hyphens]{url}
+\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,breaklinks=true]{hyperref}
 \usepackage[numbers,sort&compress]{natbib}
 \usepackage{xcolor}
 
@@ -240,6 +244,20 @@ def _extend_bibtex(shared: dict, new_entries: list[str]):
         if m and m.group(1).strip() not in existing_keys:
             shared.setdefault("bibtex_entries", []).append(entry)
             existing_keys.add(m.group(1).strip())
+
+
+def _sanitize_section_body(body: str) -> str:
+    """Strip all non-body LaTeX leakage from an LLM-generated section."""
+    body = re.sub(r"%%BEGIN BIBTEX%%.*?%%END BIBTEX%%", "", body, flags=re.DOTALL)
+    body = re.sub(r"\\begin\{thebibliography\}.*?\\end\{thebibliography\}", "", body, flags=re.DOTALL)
+    body = re.sub(r"\\bibliographystyle\{[^}]*\}", "", body)
+    body = re.sub(r"\\bibliography\{[^}]*\}", "", body)
+    # Strip any accidentally included preamble (\documentclass, \usepackage, \begin{document})
+    body = re.sub(r"\\documentclass\b.*?\n", "", body)
+    body = re.sub(r"\\usepackage\b.*?\n", "", body)
+    body = re.sub(r"\\begin\{document\}|\\end\{document\}", "", body)
+    body = re.sub(r"\\maketitle\b", "", body)
+    return body.strip()
 
 
 def _existing_files(shared: dict) -> str:
@@ -570,11 +588,18 @@ def _write_section(section: str, shared: dict):
 ## BibTeX keys: {", ".join(cite_keys) or "No citations yet."}
 
 ## Rules
-- Output ONLY this section's LaTeX (\\section{{...}} onward). No preamble.
+- Output ONLY this section's LaTeX (\\section{{...}} onward). No preamble, no \\documentclass, no \\usepackage.
 - Use \\cite{{key}} only from keys above. Back every claim.
 - Active voice, formal tone. Escape \\%, \\&, \\#, \\$.
 - Abstract: 150-250 words, no \\cite.
 - Do NOT include \\bibliography, \\bibliographystyle, or \\begin{{thebibliography}} — the skeleton handles these.
+- Tables: use \\resizebox{{\\textwidth}}{{!}}{{...}} around wide tabular environments to prevent overflow. Keep all tables to a CONSISTENT column count and font size so reading experience is uniform across the paper.
+- Long URLs: wrap with \\url{{...}} so they break across lines.
+- Figures: use [htbp] placement and \\includegraphics[width=0.9\\textwidth]{{figures/<filename>}}.
+- Workflow figure: if `workflow.png` appears in the **Available** figures list above (not the "Already used" list), include it ONCE in this section to show the study design. Do NOT include it if it is already listed as "Already used".
+- Hyperparameter details: report only the FINAL chosen values and 1-sentence justification. Do NOT describe the full tuning search, grid details, or intermediate results.
+- Visualizations: ALL charts and plots MUST be generated with seaborn or plotly. Never use single-color bar charts — use a distinct color per category/group.
+- Section order: Conclusion MUST be the final section (unless an explicit Appendix follows). Never place any content section after Conclusion.
 
 %%BEGIN SECTION%%
 \\section{{{section.title()}}}
@@ -588,13 +613,7 @@ def _write_section(section: str, shared: dict):
     track_cost(shared, f"writing:{section}", usage)
 
     sec_m = re.search(r"%%BEGIN SECTION%%(.*?)%%END SECTION%%", text, re.DOTALL)
-    body = sec_m.group(1).strip() if sec_m else text.strip()
-    # Always strip BibTeX marker blocks from body — they must never appear in LaTeX
-    body = re.sub(r"%%BEGIN BIBTEX%%.*?%%END BIBTEX%%", "", body, flags=re.DOTALL).strip()
-    # Strip any LaTeX bibliography environments that leaked into the section body
-    body = re.sub(r"\\begin\{thebibliography\}.*?\\end\{thebibliography\}", "", body, flags=re.DOTALL).strip()
-    body = re.sub(r"\\bibliographystyle\{[^}]*\}", "", body).strip()
-    body = re.sub(r"\\bibliography\{[^}]*\}", "", body).strip()
+    body = _sanitize_section_body(sec_m.group(1) if sec_m else text)
     bib_m = re.search(r"%%BEGIN BIBTEX%%(.*?)%%END BIBTEX%%", text, re.DOTALL)
     if bib_m:
         new_entries = [e.strip() for e in re.findall(r"(@\w+\{[^@]+)", bib_m.group(1), re.DOTALL) if e.strip()]
@@ -624,10 +643,7 @@ Rules:
             budget_remaining=shared.get("budget_remaining", 0))
         track_cost(shared, f"writing:{section}:retry", retry_usage)
         retry_sec_m = re.search(r"%%BEGIN SECTION%%(.*?)%%END SECTION%%", retry_text, re.DOTALL)
-        retry_body = retry_sec_m.group(1).strip() if retry_sec_m else retry_text.strip()
-        retry_body = re.sub(r"%%BEGIN BIBTEX%%.*?%%END BIBTEX%%", "", retry_body, flags=re.DOTALL).strip()
-        retry_body = re.sub(r"\\begin\{thebibliography\}.*?\\end\{thebibliography\}", "", retry_body, flags=re.DOTALL).strip()
-        retry_body = re.sub(r"\\bibliographystyle\{[^}]*\}|\\bibliography\{[^}]*\}", "", retry_body).strip()
+        retry_body = _sanitize_section_body(retry_sec_m.group(1) if retry_sec_m else retry_text)
         if len(retry_body.strip()) > len(body.strip()):
             body = retry_body
             print(f"[PlanDrivenExecutor] '{section}' retry succeeded ({len(body)} chars)")
@@ -648,106 +664,74 @@ Rules:
     print(f"[PlanDrivenExecutor] '{section}' written ({len(body)} chars, ${usage['cost']:.4f})")
 
 
-def _generate_workflow_diagram(shared: dict):
-    """Generate a study-workflow diagram from the executed plan steps.
+def _build_workflow_prompt(shared: dict) -> str:
+    """Build a gpt-image-2 prompt describing the research workflow from the executed plan."""
+    plan = shared.get("plan", [])
+    topic = shared.get("topic", "research")[:80]
 
-    Produces figures/workflow.png showing the research pipeline actually run.
-    Skipped if matplotlib is unavailable or the figure already exists.
+    research_steps = [t["task"][:50] for t in plan if t.get("type") == "research"]
+    write_steps    = [t.get("section") or t["task"][:40]
+                      for t in plan if t.get("type") == "write"]
+
+    research_block = " → ".join(research_steps) if research_steps else "Literature survey"
+    write_block    = " → ".join(write_steps)    if write_steps    else "Report writing"
+
+    return (
+        f"A clean, professional research workflow diagram for a scientific paper titled '{topic}'. "
+        f"Show a left-to-right flowchart with two swim-lanes: "
+        f"top lane labelled 'Research' contains boxes: {research_block}; "
+        f"bottom lane labelled 'Writing' contains boxes: {write_block}. "
+        "Arrows connect steps in each lane, and a vertical arrow links the Research lane to the Writing lane. "
+        "White background, flat design, muted blue and green color scheme, "
+        "sans-serif labels, no decorative elements."
+    )
+
+
+async def _generate_workflow_diagram_async(shared: dict):
+    """Generate a study-workflow diagram via gpt-image-2, run in executor to avoid blocking.
+
+    Skipped silently if the figure already exists or OPENROUTER_API_KEY is absent.
+    Falls back to a no-op (no matplotlib dependency) so the report still compiles.
     """
     out_dir = Path(shared["output_path"])
     dest = out_dir / "figures" / "workflow.png"
     if dest.exists():
-        return  # already generated
-    try:
-        import matplotlib
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
-        import matplotlib.patches as mpatches
-    except ImportError:
-        print("[workflow] matplotlib not available — skipping workflow diagram")
         return
 
-    plan = shared.get("plan", [])
-    if not plan:
+    if not os.environ.get("OPENROUTER_API_KEY"):
+        print("[workflow] OPENROUTER_API_KEY not set — skipping workflow diagram")
         return
 
-    # Build ordered list of (label, status, type) from the executed plan
-    steps = [
-        {
-            "label": t.get("task", "")[:40],
-            "status": t.get("status", "pending"),
-            "type": t.get("type", "research"),
-        }
-        for t in plan
-    ]
+    # Locate the generate.py script relative to this file's project root
+    project_root = Path(__file__).resolve().parents[1]
+    generate_script = project_root / "skills" / "gpt-image-2" / "scripts" / "generate.py"
+    if not generate_script.exists():
+        print(f"[workflow] gpt-image-2 script not found at {generate_script} — skipping")
+        return
 
-    COLOR = {
-        "done":       "#4CAF50",  # green
-        "failed":     "#F44336",  # red
-        "in_progress":"#FF9800",  # orange
-        "pending":    "#9E9E9E",  # grey
-    }
-    TYPE_SHAPE = {"research": "s", "write": "D"}  # square vs diamond (via text)
+    prompt = _build_workflow_prompt(shared)
 
-    n = len(steps)
-    cols = min(4, n)
-    rows = (n + cols - 1) // cols
-
-    fig_w = max(10, cols * 3.2)
-    fig_h = max(4, rows * 2.0 + 1.5)
-    fig, ax = plt.subplots(figsize=(fig_w, fig_h))
-    ax.set_xlim(-0.5, cols - 0.5)
-    ax.set_ylim(-rows, 0.5)
-    ax.axis("off")
-
-    for i, step in enumerate(steps):
-        row = i // cols
-        col = i % cols
-        x, y = col, -row
-        color = COLOR.get(step["status"], "#9E9E9E")
-        rect = mpatches.FancyBboxPatch(
-            (x - 0.42, y - 0.35), 0.84, 0.70,
-            boxstyle="round,pad=0.05",
-            facecolor=color, edgecolor="white", linewidth=1.5,
-            alpha=0.88,
+    def _run():
+        r = subprocess.run(
+            ["python", str(generate_script),
+             "-p", prompt,
+             "-f", str(dest),
+             "--size", "1536x1024",
+             "--quality", "medium"],
+            capture_output=True, text=True, errors="replace",
+            timeout=120,
+            env={**os.environ},
         )
-        ax.add_patch(rect)
-        prefix = "R" if step["type"] == "research" else "W"
-        ax.text(x, y + 0.18, f"{prefix}{i+1}", ha="center", va="center",
-                fontsize=7, fontweight="bold", color="white")
-        label = step["label"]
-        if len(label) > 32:
-            label = label[:30] + "…"
-        ax.text(x, y - 0.08, label, ha="center", va="center",
-                fontsize=5.5, color="white", wrap=True,
-                multialignment="center")
+        return r
 
-        # Arrow to next step in same row
-        if i < n - 1 and (i + 1) % cols != 0:
-            ax.annotate("", xy=(col + 0.44, y), xytext=(col + 1 - 0.44, y),
-                        arrowprops=dict(arrowstyle="<-", color="#555", lw=1.2))
-        # Down-arrow at row boundary
-        if (i + 1) % cols == 0 and i < n - 1:
-            ax.annotate("", xy=(col, y - 0.38), xytext=(col, y - 0.62),
-                        arrowprops=dict(arrowstyle="->", color="#555", lw=1.2))
-
-    # Legend
-    legend_patches = [
-        mpatches.Patch(color=COLOR["done"],        label="done (R=research, W=write)"),
-        mpatches.Patch(color=COLOR["failed"],      label="failed"),
-        mpatches.Patch(color=COLOR["in_progress"], label="in_progress"),
-        mpatches.Patch(color=COLOR["pending"],     label="pending"),
-    ]
-    ax.legend(handles=legend_patches, loc="upper center",
-              bbox_to_anchor=(0.5, 0.08 / fig_h + 1.0),
-              ncol=4, fontsize=7, framealpha=0.7)
-
-    topic = shared.get("topic", "")[:60]
-    ax.set_title(f"Study Workflow — {topic}", fontsize=9, pad=10)
-    plt.tight_layout()
-    plt.savefig(str(dest), dpi=150, bbox_inches="tight")
-    plt.close(fig)
-    print(f"[workflow] diagram saved → {dest}")
+    try:
+        r = await asyncio.get_event_loop().run_in_executor(None, _run)
+        if r.returncode == 0 and dest.exists():
+            print(f"[workflow] diagram saved → {dest}")
+        else:
+            print(f"[workflow] gpt-image-2 failed (exit={r.returncode}): {r.stderr[:200]}")
+    except Exception as e:
+        print(f"[workflow] diagram generation error: {e}")
 
 
 async def _run_skill_async(skill_name: str, shared: dict):
@@ -912,7 +896,7 @@ async def _write_section_async(section: str, shared: dict):
         lines.append(r"""```latex
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.8\textwidth]{figures/<filename>}
+\includegraphics[width=0.9\textwidth]{figures/<filename>}
 \caption{<descriptive caption>}
 \label{fig:<label>}
 \end{figure}
@@ -932,11 +916,18 @@ async def _write_section_async(section: str, shared: dict):
 ## BibTeX keys: {", ".join(cite_keys) or "No citations yet."}
 
 ## Rules
-- Output ONLY this section's LaTeX (\\section{{...}} onward). No preamble.
+- Output ONLY this section's LaTeX (\\section{{...}} onward). No preamble, no \\documentclass, no \\usepackage.
 - Use \\cite{{key}} only from keys above. Back every claim.
 - Active voice, formal tone. Escape \\%, \\&, \\#, \\$.
 - Abstract: 150-250 words, no \\cite.
 - Do NOT include \\bibliography, \\bibliographystyle, or \\begin{{thebibliography}} — the skeleton handles these.
+- Tables: use \\resizebox{{\\textwidth}}{{!}}{{...}} around wide tabular environments to prevent overflow. Keep all tables to a CONSISTENT column count and font size so reading experience is uniform across the paper.
+- Long URLs: wrap with \\url{{...}} so they break across lines.
+- Figures: use [htbp] placement and \\includegraphics[width=0.9\\textwidth]{{figures/<filename>}}.
+- Workflow figure: if `workflow.png` appears in the **Available** figures list above (not the "Already used" list), include it ONCE in this section to show the study design. Do NOT include it if it is already listed as "Already used".
+- Hyperparameter details: report only the FINAL chosen values and 1-sentence justification. Do NOT describe the full tuning search, grid details, or intermediate results.
+- Visualizations: ALL charts and plots MUST be generated with seaborn or plotly. Never use single-color bar charts — use a distinct color per category/group.
+- Section order: Conclusion MUST be the final section (unless an explicit Appendix follows). Never place any content section after Conclusion.
 
 %%BEGIN SECTION%%
 \\section{{{section.title()}}}
@@ -950,11 +941,7 @@ async def _write_section_async(section: str, shared: dict):
     track_cost(shared, f"writing:{section}", usage)
 
     sec_m = re.search(r"%%BEGIN SECTION%%(.*?)%%END SECTION%%", text, re.DOTALL)
-    body = sec_m.group(1).strip() if sec_m else text.strip()
-    body = re.sub(r"%%BEGIN BIBTEX%%.*?%%END BIBTEX%%", "", body, flags=re.DOTALL).strip()
-    body = re.sub(r"\\begin\{thebibliography\}.*?\\end\{thebibliography\}", "", body, flags=re.DOTALL).strip()
-    body = re.sub(r"\\bibliographystyle\{[^}]*\}", "", body).strip()
-    body = re.sub(r"\\bibliography\{[^}]*\}", "", body).strip()
+    body = _sanitize_section_body(sec_m.group(1) if sec_m else text)
     bib_m = re.search(r"%%BEGIN BIBTEX%%(.*?)%%END BIBTEX%%", text, re.DOTALL)
     if bib_m:
         new_entries = [e.strip() for e in re.findall(r"(@\w+\{[^@]+)", bib_m.group(1), re.DOTALL) if e.strip()]
@@ -983,10 +970,7 @@ Rules:
             budget_remaining=shared.get("budget_remaining", 0))
         track_cost(shared, f"writing:{section}:retry", retry_usage)
         retry_sec_m = re.search(r"%%BEGIN SECTION%%(.*?)%%END SECTION%%", retry_text, re.DOTALL)
-        retry_body = retry_sec_m.group(1).strip() if retry_sec_m else retry_text.strip()
-        retry_body = re.sub(r"%%BEGIN BIBTEX%%.*?%%END BIBTEX%%", "", retry_body, flags=re.DOTALL).strip()
-        retry_body = re.sub(r"\\begin\{thebibliography\}.*?\\end\{thebibliography\}", "", retry_body, flags=re.DOTALL).strip()
-        retry_body = re.sub(r"\\bibliographystyle\{[^}]*\}|\\bibliography\{[^}]*\}", "", retry_body).strip()
+        retry_body = _sanitize_section_body(retry_sec_m.group(1) if retry_sec_m else retry_text)
         if len(retry_body.strip()) > len(body.strip()):
             body = retry_body
             print(f"[PlanDrivenExecutor] '{section}' retry succeeded ({len(body)} chars)")
@@ -1007,28 +991,26 @@ Rules:
 
 async def _assemble_tex_async(shared: dict):
     """Async version of _assemble_tex — title generation is awaited."""
-    _generate_workflow_diagram(shared)
+    await _generate_workflow_diagram_async(shared)
     order = _section_order(shared)
 
-    def _clean_body(b: str) -> str:
-        b = re.sub(r"%%BEGIN BIBTEX%%.*?%%END BIBTEX%%", "", b, flags=re.DOTALL)
-        b = re.sub(r"\\begin\{thebibliography\}.*?\\end\{thebibliography\}", "", b, flags=re.DOTALL)
-        b = re.sub(r"\\bibliographystyle\{[^}]*\}", "", b)
-        b = re.sub(r"\\bibliography\{[^}]*\}", "", b)
-        return b.strip()
-
-    cleaned_bodies = {s: _clean_body(b) for s, b in shared.get("section_bodies", {}).items()}
+    cleaned_bodies = {s: _sanitize_section_body(b) for s, b in shared.get("section_bodies", {}).items()}
     body = "\n\n".join(cleaned_bodies.get(s, "")
                        for s in order if s in cleaned_bodies and s != "abstract")
     abstract = re.sub(r"\\section\{[Aa]bstract\}\s*", "",
                       cleaned_bodies.get("abstract", "Abstract not available.")).strip()
-    title_text, title_usage = await call_llm_async(
-        f"Generate a concise academic paper title (under {TITLE_MAX_WORDS} words) for the following research topic. "
-        f"Return ONLY the title, no quotes, no explanation.\n\n{shared.get('topic', '')[:TITLE_TOPIC_CHARS]}",
-        budget_remaining=shared.get("budget_remaining", 0),
-    )
-    track_cost(shared, "title:generate", title_usage)
-    title = title_text.strip().strip('"').strip("'")
+    if shared.get("paper_title"):
+        title = shared["paper_title"]
+    else:
+        # Fallback: ReviewExecutor did not run (e.g. budget skipped review)
+        title_text, title_usage = await call_llm_async(
+            f"Generate a concise academic paper title (under {TITLE_MAX_WORDS} words) "
+            f"based on the following paper draft. "
+            f"Return ONLY the title, no quotes, no explanation.\n\n{body[:TITLE_TOPIC_CHARS]}",
+            budget_remaining=shared.get("budget_remaining", 0),
+        )
+        track_cost(shared, "title:generate", title_usage)
+        title = title_text.strip().strip('"').strip("'")
     tex = (LATEX_SKELETON
            .replace("%% TITLE %%", title)
            .replace("%% ABSTRACT %%", abstract)
@@ -1044,27 +1026,23 @@ async def _assemble_tex_async(shared: dict):
 
 def _assemble_tex(shared: dict):
     """Assemble report.tex + references.bib from written sections."""
-    _generate_workflow_diagram(shared)
     order = _section_order(shared)
-    # Defensive: strip any BibTeX marker blocks and bibliography environments that leaked into section bodies
-    def _clean_body(b: str) -> str:
-        b = re.sub(r"%%BEGIN BIBTEX%%.*?%%END BIBTEX%%", "", b, flags=re.DOTALL)
-        b = re.sub(r"\\begin\{thebibliography\}.*?\\end\{thebibliography\}", "", b, flags=re.DOTALL)
-        b = re.sub(r"\\bibliographystyle\{[^}]*\}", "", b)
-        b = re.sub(r"\\bibliography\{[^}]*\}", "", b)
-        return b.strip()
-    cleaned_bodies = {s: _clean_body(b) for s, b in shared.get("section_bodies", {}).items()}
+    cleaned_bodies = {s: _sanitize_section_body(b) for s, b in shared.get("section_bodies", {}).items()}
     body = "\n\n".join(cleaned_bodies.get(s, "")
                        for s in order if s in cleaned_bodies and s != "abstract")
     abstract = re.sub(r"\\section\{[Aa]bstract\}\s*", "",
                       cleaned_bodies.get("abstract", "Abstract not available.")).strip()
-    title_text, title_usage = call_llm(
-        f"Generate a concise academic paper title (under {TITLE_MAX_WORDS} words) for the following research topic. "
-        f"Return ONLY the title, no quotes, no explanation.\n\n{shared.get('topic', '')[:TITLE_TOPIC_CHARS]}",
-        budget_remaining=shared.get("budget_remaining", 0),
-    )
-    track_cost(shared, "title:generate", title_usage)
-    title = title_text.strip().strip('"').strip("'")
+    if shared.get("paper_title"):
+        title = shared["paper_title"]
+    else:
+        title_text, title_usage = call_llm(
+            f"Generate a concise academic paper title (under {TITLE_MAX_WORDS} words) "
+            f"based on the following paper draft. "
+            f"Return ONLY the title, no quotes, no explanation.\n\n{body[:TITLE_TOPIC_CHARS]}",
+            budget_remaining=shared.get("budget_remaining", 0),
+        )
+        track_cost(shared, "title:generate", title_usage)
+        title = title_text.strip().strip('"').strip("'")
     tex = (LATEX_SKELETON
            .replace("%% TITLE %%", title)
            .replace("%% ABSTRACT %%", abstract)
@@ -1113,7 +1091,7 @@ class Initializer(Node):
 # 2. PlanInitialExecutor  — drafts structured todo list (feedforward control)
 # ===================================================================
 class PlanInitialExecutor(AsyncNode):
-    def prep(self, shared):
+    async def prep_async(self, shared):
         return {
             "topic": shared["topic"],
             "report_type": shared.get("report_type", "Literature Review"),
@@ -1164,7 +1142,7 @@ Return YAML list only:
         )
         return text, usage
 
-    def post(self, shared, prep_res, exec_res):
+    async def post_async(self, shared, prep_res, exec_res):
         text, usage = exec_res
         track_cost(shared, "plan:draft", usage)
 
@@ -1235,7 +1213,7 @@ Return YAML list only:
 # 3. PlanDrivenExecutor  — executes plan steps in order, revises plan
 # ===================================================================
 class PlanDrivenExecutor(AsyncNode):
-    def prep(self, shared):
+    async def prep_async(self, shared):
         plan = shared.get("plan", [])
         pending = [t for t in plan if t.get("status") == "pending"]
         next_step = pending[0] if pending else None
@@ -1482,8 +1460,17 @@ Evaluate against NeurIPS/ICML/ICLR/ACL reviewer standards.
 
 ### Figures & formulas
 - At least one figure or table (architecture, workflow, or results plot)
+- Study workflow diagram (`figures/workflow.png`) included in Introduction or Methods
 - All figures referenced in text with self-contained captions
 - Key technical concepts formalized with equations where appropriate
+- All charts/plots use seaborn or plotly; no single-color bar charts (each category has a distinct color)
+
+### Tables & hyperparameters
+- All tables use consistent column count and font size across the paper
+- Hyperparameter reporting limited to final values + 1-sentence justification; no tuning grids or search details
+
+### Section order
+- Conclusion is the LAST section (no content section may follow it except an explicit Appendix)
 
 ### Citations
 - Min 5 (quick summary), 10-15 (lit review), 20+ (full paper)
@@ -1522,7 +1509,7 @@ Do NOT request revision for cosmetic issues — only for checklist violations or
             return {"action": "compile", "comments": []}, usage
         return parsed, usage
 
-    def post(self, shared, prep_res, exec_res):
+    async def post_async(self, shared, prep_res, exec_res):
         decision, usage = exec_res
         track_cost(shared, f"review:{prep_res['review_rounds']}", usage)
         shared["review_rounds"] = prep_res["review_rounds"] + 1
@@ -1535,6 +1522,23 @@ Do NOT request revision for cosmetic issues — only for checklist violations or
         # Sync quality gate: decide compile vs revise based on review results
         if decision.get("action") == "compile" or not pending:
             print(f"[ReviewExecutor] Draft accepted (round {shared['review_rounds']})")
+            # Generate title now — from the final accepted draft body, not just the topic
+            if not shared.get("paper_title"):
+                order = _section_order(shared)
+                cleaned = {s: _sanitize_section_body(b)
+                           for s, b in shared.get("section_bodies", {}).items()}
+                draft_body = "\n\n".join(cleaned.get(s, "") for s in order
+                                         if s in cleaned and s != "abstract")
+                title_context = (draft_body or shared.get("topic", ""))[:TITLE_TOPIC_CHARS]
+                title_text, title_usage = await call_llm_async(
+                    f"Generate a concise academic paper title (under {TITLE_MAX_WORDS} words) "
+                    f"based on the following paper draft. "
+                    f"Return ONLY the title, no quotes, no explanation.\n\n{title_context}",
+                    budget_remaining=shared.get("budget_remaining", 0),
+                )
+                track_cost(shared, "title:generate", title_usage)
+                shared["paper_title"] = title_text.strip().strip('"').strip("'")
+                print(f"[ReviewExecutor] Title generated: {shared['paper_title']}")
             return "compile"
 
         # Append revision steps to plan tail
@@ -1620,7 +1624,7 @@ class CompileTeX(Node):
 # 7. FixTeX  — fix LaTeX errors or missing citations (max 2 attempts)
 # ===================================================================
 class FixTeX(AsyncNode):
-    def prep(self, shared):
+    async def prep_async(self, shared):
         undefined = shared.get("undefined_citations", [])
         return {
             "tex_content": shared["tex_content"],
@@ -1661,7 +1665,7 @@ Common fixes: escape %, &, #, $, _; close environments; fix undefined commands."
 
         return await call_llm_async(prompt, budget_remaining=prep_res["budget_remaining"])
 
-    def post(self, shared, prep_res, exec_res):
+    async def post_async(self, shared, prep_res, exec_res):
         text, usage = exec_res
         shared["fix_attempts"] = prep_res["attempt"] + 1
 
