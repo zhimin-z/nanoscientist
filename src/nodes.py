@@ -490,7 +490,12 @@ After completing the step, summarise findings and append any citations:
 CITATION RULES:
 - Keys MUST follow author+year format (e.g. smith2023attention, vaswani2017transformer).
 - Do NOT use internal filenames as keys (e.g. dataset_metadata, classification_results, analysis_report).
-- Every entry MUST have author= and title= fields with real values."""
+- Every entry MUST have author= and title= fields with real values.
+
+SUMMARY RULES:
+- In the written summary, NEVER mention absolute file paths (e.g. /home/..., {abs_out}/...).
+- Refer to saved files by their short relative name only (e.g. "github_issues.json", "cluster_trends.png") or by their real resource name (e.g. "GitHub Issues API", "arXiv search results").
+- The summary will be read by a paper-writing agent — write it as research notes, not as shell output."""
 
         if needs_code:
             # Use tool-calling loop: model drives bash execution with error feedback.
@@ -509,7 +514,7 @@ CITATION RULES:
                 salvage_text, salvage_usage = call_llm(
                     f"""You were executing a research step but ran out of tool rounds.
 Summarise ALL findings and data you collected so far in this step.
-Include any file paths created, statistics found, and key results.
+Include statistics found and key results. Do NOT mention absolute file paths — refer to saved files by short name only (e.g. "cluster_trends.png") or by real resource name.
 This summary will be used by the paper-writing agent.
 
 ## Step that was executing:
@@ -605,6 +610,8 @@ def _write_section(section: str, shared: dict):
 - Hyperparameter details: report only the FINAL chosen values and 1-sentence justification. Do NOT describe the full tuning search, grid details, or intermediate results.
 - Visualizations: ALL charts and plots MUST be generated with seaborn or plotly. Never use single-color bar charts — use a distinct color per category/group.
 - Section order: Conclusion MUST be the final section (unless an explicit Appendix follows). Never place any content section after Conclusion.
+- NEVER reference internal file paths (e.g. github_issues.json, arxiv_results.json, /home/..., data/, figures/) in the prose. Use the real dataset/resource name instead (e.g. "GitHub Issues API", "arXiv search results", "our curated corpus").
+- NEVER include absolute filesystem paths in any LaTeX text or \\texttt{{}} blocks.
 
 %%BEGIN SECTION%%
 \\section{{{section.title()}}}
@@ -833,7 +840,12 @@ After completing the step, summarise findings and append any citations:
 CITATION RULES:
 - Keys MUST follow author+year format (e.g. smith2023attention, vaswani2017transformer).
 - Do NOT use internal filenames as keys (e.g. dataset_metadata, classification_results, analysis_report).
-- Every entry MUST have author= and title= fields with real values."""
+- Every entry MUST have author= and title= fields with real values.
+
+SUMMARY RULES:
+- In the written summary, NEVER mention absolute file paths (e.g. /home/..., {abs_out}/...).
+- Refer to saved files by their short relative name only (e.g. "github_issues.json", "cluster_trends.png") or by their real resource name (e.g. "GitHub Issues API", "arXiv search results").
+- The summary will be read by a paper-writing agent — write it as research notes, not as shell output."""
 
         if needs_code:
             step_text, step_usage = await call_llm_with_tools_async(
@@ -850,7 +862,7 @@ CITATION RULES:
                 salvage_text, salvage_usage = await call_llm_async(
                     f"""You were executing a research step but ran out of tool rounds.
 Summarise ALL findings and data you collected so far in this step.
-Include any file paths created, statistics found, and key results.
+Include statistics found and key results. Do NOT mention absolute file paths — refer to saved files by short name only (e.g. "cluster_trends.png") or by real resource name.
 This summary will be used by the paper-writing agent.
 
 ## Step that was executing:
@@ -945,6 +957,8 @@ async def _write_section_async(section: str, shared: dict):
 - Hyperparameter details: report only the FINAL chosen values and 1-sentence justification. Do NOT describe the full tuning search, grid details, or intermediate results.
 - Visualizations: ALL charts and plots MUST be generated with seaborn or plotly. Never use single-color bar charts — use a distinct color per category/group.
 - Section order: Conclusion MUST be the final section (unless an explicit Appendix follows). Never place any content section after Conclusion.
+- NEVER reference internal file paths (e.g. github_issues.json, arxiv_results.json, /home/..., data/, figures/) in the prose. Use the real dataset/resource name instead (e.g. "GitHub Issues API", "arXiv search results", "our curated corpus").
+- NEVER include absolute filesystem paths in any LaTeX text or \\texttt{{}} blocks.
 
 %%BEGIN SECTION%%
 \\section{{{section.title()}}}
@@ -1345,14 +1359,37 @@ changes:
 
         plan = shared.get("plan", [])
         changes = parsed.get("changes", [])
+
+        def _resolve_id(val):
+            """Convert plan step reference to int id, or None if unresolvable."""
+            if val is None:
+                return None
+            try:
+                return int(val)
+            except (ValueError, TypeError):
+                # LLM returned a slug/string — find closest matching step by task text
+                val_str = str(val).lower().replace("-", " ").replace("_", " ")
+                best = None
+                best_score = 0
+                for t in plan:
+                    task_words = set(t.get("task", "").lower().split())
+                    slug_words = set(val_str.split())
+                    score = len(task_words & slug_words)
+                    if score > best_score:
+                        best_score = score
+                        best = int(t["id"])
+                return best
+
         for change in changes:
             action = change.get("action")
             if action == "remove":
-                cid = int(change["id"]) if change.get("id") is not None else None
+                cid = _resolve_id(change.get("id"))
+                if cid is None:
+                    continue
                 plan[:] = [t for t in plan if int(t.get("id", 0)) != cid or t.get("status") != "pending"]
                 print(f"[PlanDrivenExecutor] plan: removed step {cid}")
             elif action == "insert":
-                after_id = int(change["after"]) if change.get("after") is not None else None
+                after_id = _resolve_id(change.get("after"))
                 new_task = change.get("task", "")
                 new_skill = change.get("skill", "")
                 # Dedup: skip if an equivalent pending/done step already exists
@@ -1365,7 +1402,7 @@ changes:
                     print(f"[PlanDrivenExecutor] plan: skipping duplicate insert '{new_task[:60]}'")
                     continue
                 new_step = {
-                    "id": change.get("id", max((int(t["id"]) for t in plan), default=0) + 1),
+                    "id": max((int(t["id"]) for t in plan), default=0) + 1,
                     "type": change.get("type", "research"),
                     "task": new_task,
                     "skill": new_skill,

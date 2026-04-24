@@ -1,6 +1,6 @@
 ---
 name: gpt-image-2
-description: Image generation via openai/gpt-5.4-image-2 routed through OpenRouter. Use whenever an agent needs to (a) generate an image from a text prompt, (b) produce posters with dense typography or Chinese text, (c) render hi-res or widescreen visuals for papers/reports. Reads OPENROUTER_API_KEY from env; writes PNG/JPEG/WebP to disk. Prompt-craft references under references/ for photorealism, posters, infographics, and character sheets.
+description: Image generation via openai/gpt-5.4-image-2 routed through OpenRouter. Use whenever an agent needs to (a) generate an image from a text prompt, (b) produce posters with dense typography or Chinese text, (c) render hi-res or widescreen visuals for papers/reports. Reads OPENROUTER_API_KEY from .env file; writes PNG/JPEG/WebP to disk. Prompt-craft references under references/ for photorealism, posters, infographics, and character sheets.
 required-keys: [OPENROUTER_API_KEY]
 allowed-tools: Bash
 license: CC BY 4.0 (prompt patterns attributed to original authors)
@@ -8,7 +8,7 @@ license: CC BY 4.0 (prompt patterns attributed to original authors)
 
 # gpt-image-2
 
-Image generation via `openai/gpt-5.4-image-2` on OpenRouter. Reads `OPENROUTER_API_KEY` from env; writes PNG/JPEG/WebP to disk.
+Image generation via `openai/gpt-5.4-image-2` on OpenRouter. Reads `OPENROUTER_API_KEY` from .env file; writes PNG/JPEG/WebP to disk.
 
 ## Usage
 
@@ -22,9 +22,8 @@ python skills/gpt-image-2/scripts/generate.py -p "PROMPT" [-f OUT] [options]
 |------|---------|-------------|
 | `-p, --prompt` | required | Text prompt |
 | `-f, --file` | auto | Output path. Auto-named `YYYY-MM-DD-HH-MM-SS-<slug>.<fmt>` in `./fig/` or cwd if omitted |
-| `-n, --n` | `1` | Number of images; suffixes filenames `_0`, `_1`, … when >1 |
 | `--model` | `openai/gpt-5.4-image-2` | OpenRouter model ID |
-| `--size` | `1024x1024` | `1024x1024`, `1536x1024`, `1024x1536`, `2048x2048`, `3840x2160`, `2160x3840` |
+| `--size` | `1024x1024` | `1024x1024`, `1536x1024`, `1024x1536` |
 | `--quality` | `high` | `auto` / `low` / `medium` / `high` |
 | `--format` | `png` | `png` / `jpeg` / `webp` |
 | `--moderation` | — | `auto` / `low` |
@@ -40,13 +39,10 @@ python skills/gpt-image-2/scripts/generate.py \
   -p 'Design a 3:4 tea poster. Exact copy: "山川茶事" / "冷泡系列" / "中杯 16 元"' \
   --size 1024x1536 --quality high -f fig/poster.png
 
-# 4K widescreen
+# Landscape figure for paper
 python skills/gpt-image-2/scripts/generate.py \
   -p "cinematic mountain landscape at golden hour" \
-  --size 3840x2160 --quality high -f fig/landscape.png
-
-# Multiple images
-python skills/gpt-image-2/scripts/generate.py -p "isometric office furniture" -n 4 -f fig/furniture.png
+  --size 1536x1024 --quality high -f fig/landscape.png
 ```
 
 ## Size guide
@@ -56,9 +52,6 @@ python skills/gpt-image-2/scripts/generate.py -p "isometric office furniture" -n
 | Default / social square | `1024x1024` |
 | Portrait poster / mobile | `1024x1536` |
 | Landscape / paper figure | `1536x1024` |
-| Hi-res print / 2K | `2048x2048` |
-| Widescreen cinematic / 4K | `3840x2160` |
-| Tall story banner | `2160x3840` |
 
 ## Error surface
 

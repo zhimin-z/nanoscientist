@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Image generation via openai/gpt-image-2 on OpenRouter."""
+"""Image generation via openai/gpt-5.4-image-2 on OpenRouter."""
 import argparse
 import base64
 import os
@@ -27,12 +27,12 @@ def _auto_path(prompt: str, fmt: str, out_dir: Path) -> Path:
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="Generate images via openai/gpt-image-2 on OpenRouter")
+    ap = argparse.ArgumentParser(description="Generate images via openai/gpt-5.4-image-2 on OpenRouter")
     ap.add_argument("-p", "--prompt", required=True, help="Text prompt")
     ap.add_argument("-f", "--file", help="Output path (auto-named if omitted)")
-    ap.add_argument("-n", "--n", type=int, default=1, help="Number of images")
     ap.add_argument("--model", default="openai/gpt-5.4-image-2", help="Model ID on OpenRouter")
-    ap.add_argument("--size", default="1024x1024", help="Image size (e.g. 1024x1024, 1024x1536)")
+    _SIZES = ["1024x1024", "1536x1024", "1024x1536"]
+    ap.add_argument("--size", default="1024x1024", choices=_SIZES, help="Image size")
     ap.add_argument("--quality", default="high", choices=["auto", "low", "medium", "high"])
     ap.add_argument("--format", dest="fmt", default="png", choices=["png", "jpeg", "webp"])
     ap.add_argument("--moderation", default=None, choices=["auto", "low"])
@@ -40,50 +40,48 @@ def main() -> None:
 
     client = _client()
 
-    kwargs: dict = dict(
-        model=args.model,
-        prompt=args.prompt,
-        n=args.n,
-        size=args.size,
-        quality=args.quality,
-        response_format="b64_json",
-        output_format=args.fmt,
-    )
+    extra: dict = {"size": args.size, "quality": args.quality, "output_format": args.fmt}
     if args.moderation:
-        kwargs["moderation"] = args.moderation
+        extra["moderation"] = args.moderation
 
     try:
-        response = client.images.generate(**kwargs)
+        response = client.chat.completions.create(
+            model=args.model,
+            messages=[{"role": "user", "content": args.prompt}],
+            extra_body=extra,
+        )
     except Exception as exc:
         print(f"error: {exc}", file=sys.stderr)
         sys.exit(1)
 
     cwd = Path.cwd()
     out_dir = cwd / "fig" if (cwd / "fig").exists() else cwd
+    dest = Path(args.file) if args.file else _auto_path(args.prompt, args.fmt, out_dir)
+    dest.parent.mkdir(parents=True, exist_ok=True)
 
-    paths: list[str] = []
-    for idx, item in enumerate(response.data):
-        if args.file:
-            dest = Path(args.file)
-            if args.n > 1:
-                dest = dest.with_stem(f"{dest.stem}_{idx}")
-        else:
-            dest = _auto_path(args.prompt, args.fmt, out_dir)
-            if args.n > 1:
-                dest = dest.with_stem(f"{dest.stem}_{idx}")
+    import re as _re
 
-        if item.b64_json:
-            dest.write_bytes(base64.b64decode(item.b64_json))
-        elif item.url:
+    raw = response.model_dump()
+    msg = raw.get("choices", [{}])[0].get("message", {})
+
+    # OpenRouter returns image in message.images[0].image_url.url as a data URL
+    images = msg.get("images") or []
+    if images:
+        url_val = (images[0].get("image_url") or {}).get("url", "")
+        m = _re.search(r'base64,([A-Za-z0-9+/=\n]+)', url_val)
+        if m:
+            dest.write_bytes(base64.b64decode(m.group(1).replace("\n", "")))
+        elif url_val.startswith("http"):
             import urllib.request
-            urllib.request.urlretrieve(item.url, dest)
+            urllib.request.urlretrieve(url_val, dest)
         else:
-            print(f"error: no image data in response: {item}", file=sys.stderr)
+            print(f"error: unrecognised image_url format: {url_val[:100]}", file=sys.stderr)
             sys.exit(1)
+    else:
+        print("error: no images in response", file=sys.stderr)
+        sys.exit(1)
 
-        print(dest)
-        paths.append(str(dest))
-
+    print(dest)
     sys.exit(0)
 
 
