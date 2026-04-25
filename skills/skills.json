@@ -51,6 +51,10 @@
     {
       "id": "research-survey",
       "description": "Generate structured literature survey reports from collected papers: outline generation, draft, section expansion, summary refinement, and final assembly."
+    },
+    {
+      "id": "study-workflow",
+      "description": "Generates a research workflow diagram (Research + Writing swim-lanes) as a PNG."
     }
   ]
 }
