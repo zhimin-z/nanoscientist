@@ -154,13 +154,13 @@ def draw_diagram(
     _draw_arrows(r_centers, lane_top_y + lane_h / 2)
     _draw_arrows(w_centers, lane_bot_y + lane_h / 2)
 
-    # Vertical dashed connector in the middle between lanes
+    # Vertical dashed connector: Research lane (top) → Writing lane (bottom)
     mid_col = (n_cols - 1) / 2
     mid_x = _box_x(int(mid_col)) + box_w / 2
-    y_top = lane_top_y + 0.05
-    y_bot = lane_bot_y + lane_h - 0.05
+    y_from = lane_top_y + 0.05          # bottom edge of research lane
+    y_to   = lane_bot_y + lane_h - 0.05  # top edge of writing lane
     ax.annotate(
-        "", xy=(mid_x, y_top), xytext=(mid_x, y_bot),
+        "", xy=(mid_x, y_to), xytext=(mid_x, y_from),
         arrowprops=dict(
             arrowstyle="-|>",
             color=DASHED_COLOR,

@@ -93,7 +93,7 @@ SECTION_ORDER = {
     "Quick Summary":     ["abstract", "introduction", "discussion", "conclusion"],
     "Literature Review": ["abstract", "introduction", "background", "discussion", "conclusion"],
     "Research Report":   ["abstract", "introduction", "background", "methods", "results", "discussion", "conclusion"],
-    "Full Paper":        ["abstract", "introduction", "background", "methods", "results", "discussion", "conclusion", "limitations"],
+    "Full Paper":        ["abstract", "introduction", "background", "methods", "results", "discussion", "limitations", "conclusion"],
 }
 
 LATEX_SKELETON = r"""\documentclass[11pt]{article}
