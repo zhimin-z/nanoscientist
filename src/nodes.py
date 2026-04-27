@@ -27,9 +27,6 @@ from .utils import (
     call_llm_with_tools,
     call_llm_with_tools_async,
     load_skill_content,
-    load_mcp_config,
-    filter_mcp_servers,
-    format_mcp_context,
     format_skill_index,
     parse_yaml_response,
     extract_bibtex,
@@ -460,13 +457,6 @@ async def _run_skill_async(skill_name: str, shared: dict):
     can_execute = "Bash" in meta.get("allowed-tools", [])
     out_dir = Path(shared["output_path"])
 
-    mcp_context = ""
-    if can_execute:
-        api_keys = shared.get("api_keys", {})
-        raw_servers = load_mcp_config()
-        available_servers = filter_mcp_servers(raw_servers, api_keys)
-        mcp_context = format_mcp_context(available_servers)
-
     text, usage = await call_llm_async(
         f"""Decompose this research skill into 2-5 atomic steps.
 
@@ -502,7 +492,6 @@ Return YAML list only:
         needs_code = bool(s.get("needs_code")) and can_execute
 
         abs_out = str(Path(shared["output_path"]).resolve())
-        mcp_block = f"\n\n{mcp_context}" if mcp_context else ""
         existing_files = _existing_files(shared)
         step_prompt = f"""Execute this single research step. Be focused and concise.
 
@@ -512,7 +501,7 @@ Return YAML list only:
 ## Working directory (ABSOLUTE): {abs_out}
 ## Already produced files (DO NOT recreate these — read them directly if needed):
 {existing_files}
-## Environment: All API keys (OPENROUTER_API_KEY, PERPLEXITY_API_KEY, GITHUB_TOKEN, HF_TOKEN, OPENAI_API_KEY, etc.) are pre-loaded from .env and available as environment variables — use them directly in bash commands without reading .env yourself.{mcp_block}
+## Environment: All API keys (OPENROUTER_API_KEY, PERPLEXITY_API_KEY, GITHUB_TOKEN, HF_TOKEN, OPENAI_API_KEY, etc.) are pre-loaded from .env and available as environment variables — use them directly in bash commands without reading .env yourself.
 
 CRITICAL working-directory rules:
 - ALL bash commands run inside {abs_out} — this is enforced by the shell.

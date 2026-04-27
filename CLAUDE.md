@@ -59,7 +59,6 @@ All values are overridable via env vars (same name). Defaults live in `_DEFAULTS
 ## Environment
 Required: `OPENROUTER_API_KEY` (all nodes).
 Optional (skill-gated): `HF_TOKEN`, `GITHUB_TOKEN`, `OPENAI_API_KEY`.
-MCP (optional): `PERPLEXITY_API_KEY` (perplexity server), `CONTEXT7_API_KEY` (context7 server, optional even within MCP).
 Inference: `MODEL_NAME`, `INFERENCE_BASE_URL`, `INPUT_TOKEN_COST_PER_MILLION`, `OUTPUT_TOKEN_COST_PER_MILLION`.
 Agent: `LOOKBACK` (default 3), `MAX_REVIEW_ROUNDS` (default 1), `MAX_TOOL_ROUNDS` (default 16).
 Tuning (all optional; nodes.py defaults in `_DEFAULTS`, utils.py defaults as module-level constants):
@@ -79,7 +78,6 @@ Tuning (all optional; nodes.py defaults in `_DEFAULTS`, utils.py defaults as mod
 - Skills: `skills/<name>/SKILL.md` — lazy-loaded; index in `skills/skills.json`
 - Skills with `allowed-tools: Bash` get a real tool-calling loop via `call_llm_with_tools`: the model drives bash execution, sees stdout/stderr, and can retry on error (up to 16 rounds; configurable via `MAX_TOOL_ROUNDS` env var)
 - Skills without `allowed-tools` use plain `call_llm` (no tools exposed)
-- MCP: servers defined in `mcp/mcp.json`; loaded via `load_mcp_config()`, filtered by `filter_mcp_servers()`, injected into Bash-skill prompts via `format_mcp_context()`; servers with missing required keys are silently excluded
 - BibTeX via `%%BEGIN BIBTEX%%...%%END BIBTEX%%`, deduplicated by `dedup_bibtex()`
 - Sections via `%%BEGIN SECTION%%...%%END SECTION%%`
 - `required-keys` frontmatter field declares which API keys a skill needs; skills are filtered out at startup if the key is missing

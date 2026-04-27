@@ -174,26 +174,6 @@ python main.py --list-skills
 
 ---
 
-## 🔌 MCP servers
-
-Skills with `allowed-tools: Bash` automatically see available MCP servers injected into their prompt.
-Servers are defined in `mcp/mcp.json` and filtered at runtime based on available API keys.
-
-| Server | What it provides | Required key |
-|---|---|---|
-| `arxiv` | Search & fetch academic papers | — |
-| `context7` | Library/framework docs lookup | `CONTEXT7_API_KEY` (optional) |
-| `deepwiki` | GitHub repo documentation | — |
-| `docs-langchain` | LangChain agent-building docs | — |
-| `exa` | Neural web search & content retrieval | — |
-| `perplexity` | AI-powered web search | `PERPLEXITY_API_KEY` |
-| `sequential-thinking` | Chain-of-thought reasoning steps | — |
-| `ssh` | Remote command execution over SSH | — |
-
-Add a server: create `mcp/<name>.yaml`, register it in `mcp/mcp.json`, and it is picked up on next run.
-
----
-
 ## 🧩 Skills
 
 Each skill is a folder under `skills/` with `SKILL.md` (lazy-loaded at runtime).
@@ -276,9 +256,6 @@ nano-scientist/
 │   ├── skills.json      # skill index (id + description)
 │   └── <skill-name>/
 │       └── SKILL.md     # instructions + optional YAML frontmatter
-├── mcp/                 # MCP server definitions
-│   ├── mcp.json         # server registry (loaded at runtime)
-│   └── <server>.yaml    # per-server config
 ├── outputs/             # generated reports (git-ignored)
 └── .env                 # API keys (git-ignored)
 ```
