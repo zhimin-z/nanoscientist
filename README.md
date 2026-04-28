@@ -167,15 +167,9 @@ python main.py proposal.md --budget 1.00
 python main.py --list-skills
 ```
 
-### Budget tiers
+### Budget
 
-| Budget | Report type | Sections | Notes |
-|---|---|---|---|
-| < $0.02 | Quick Summary | 4 | 1–2 skill calls; minimal citations |
-| $0.02 – $0.04 | Literature Review | 5 | Several skill calls; focused literature only |
-| $0.04 – $0.07 | Research Report | 7 | Methods + results; moderate depth |
-| $0.07 – $0.10 | Full Paper | 8 | All sections; review/revision pass |
-| $0.10+ | Full Paper | 8 | Extended depth; more skills, more citations |
+Every run targets a full 8-section paper. The budget controls depth, not report type — more budget means more skill calls, more citations, and more revision rounds. Loops terminate when estimated remaining LLM calls drop below a threshold (not a fixed dollar floor), so the agent always spends as much as it can usefully spend.
 
 ---
 

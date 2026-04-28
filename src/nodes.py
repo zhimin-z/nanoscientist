@@ -35,12 +35,9 @@ from .utils import (
 # Configuration
 # ---------------------------------------------------------------------------
 _DEFAULTS = {
-    "BUDGET_RESERVE":            "0.03",
-    "WRITE_RESERVE":             "0.015",
-    "REVIEW_RESERVE":            "0.008",
-    "BUDGET_QUICK_SUMMARY":      "0.02",
-    "BUDGET_LITERATURE_REVIEW":  "0.04",
-    "BUDGET_RESEARCH_REPORT":    "0.07",
+    "BUDGET_RESERVE_RATIO":      "0.05",   # stop loop if remaining < 5% of original
+    "WRITE_RESERVE_RATIO":       "0.02",   # skip section write if below 2%
+    "REVIEW_RESERVE_RATIO":      "0.01",   # skip review if below 1%
     "CODE_EXEC_TIMEOUT":         "300",
     "LATEX_COMPILE_TIMEOUT":     "60",
     "SKILL_CONTENT_LIMIT":       "1500",
@@ -50,7 +47,6 @@ _DEFAULTS = {
     "TITLE_TOPIC_CHARS":         "2000",
     "MIN_SECTION_LENGTH":        "100",
     "TITLE_MAX_WORDS":           "15",
-    # Loop termination: stop a loop when estimated remaining calls drops to this
     "MIN_CALLS_TO_CONTINUE":     "3",
 }
 
@@ -59,12 +55,9 @@ def _cfg(key: str, cast=float) -> float:
     return cast(os.environ.get(key, _DEFAULTS[key]))
 
 
-BUDGET_RESERVE          = _cfg("BUDGET_RESERVE")
-WRITE_RESERVE           = _cfg("WRITE_RESERVE")
-REVIEW_RESERVE          = _cfg("REVIEW_RESERVE")
-BUDGET_QUICK_SUMMARY    = _cfg("BUDGET_QUICK_SUMMARY")
-BUDGET_LITERATURE_REVIEW= _cfg("BUDGET_LITERATURE_REVIEW")
-BUDGET_RESEARCH_REPORT  = _cfg("BUDGET_RESEARCH_REPORT")
+BUDGET_RESERVE_RATIO    = _cfg("BUDGET_RESERVE_RATIO")
+WRITE_RESERVE_RATIO     = _cfg("WRITE_RESERVE_RATIO")
+REVIEW_RESERVE_RATIO    = _cfg("REVIEW_RESERVE_RATIO")
 CODE_EXEC_TIMEOUT       = _cfg("CODE_EXEC_TIMEOUT",     int)
 LATEX_COMPILE_TIMEOUT   = _cfg("LATEX_COMPILE_TIMEOUT", int)
 SKILL_CONTENT_LIMIT     = _cfg("SKILL_CONTENT_LIMIT",   int)
@@ -76,12 +69,10 @@ MIN_SECTION_LENGTH      = _cfg("MIN_SECTION_LENGTH",    int)
 TITLE_MAX_WORDS         = _cfg("TITLE_MAX_WORDS",       int)
 MIN_CALLS_TO_CONTINUE   = _cfg("MIN_CALLS_TO_CONTINUE", int)
 
-SECTION_ORDER = {
-    "Quick Summary":     ["abstract", "introduction", "discussion", "conclusion"],
-    "Literature Review": ["abstract", "introduction", "background", "discussion", "conclusion"],
-    "Research Report":   ["abstract", "introduction", "background", "methods", "results", "discussion", "conclusion"],
-    "Full Paper":        ["abstract", "introduction", "background", "methods", "results", "discussion", "limitations", "conclusion"],
-}
+FULL_PAPER_SECTIONS = [
+    "abstract", "introduction", "background", "methods",
+    "results", "discussion", "limitations", "conclusion",
+]
 
 LATEX_SKELETON = r"""\documentclass[11pt]{article}
 \usepackage[margin=1in]{geometry}
@@ -122,22 +113,15 @@ LATEX_SKELETON = r"""\documentclass[11pt]{article}
 # Shared helpers
 # ---------------------------------------------------------------------------
 
-def _report_type(budget: float) -> str:
-    if budget < BUDGET_QUICK_SUMMARY:      return "Quick Summary"
-    if budget < BUDGET_LITERATURE_REVIEW:  return "Literature Review"
-    if budget < BUDGET_RESEARCH_REPORT:    return "Research Report"
-    return "Full Paper"
-
-
 def _section_order(shared: dict) -> list[str]:
-    return SECTION_ORDER.get(shared.get("report_type", "Literature Review"),
-                             SECTION_ORDER["Literature Review"])
+    return FULL_PAPER_SECTIONS
 
 
-def _budget_ok(shared: dict, reserve: float = None) -> bool:
-    reserve = reserve if reserve is not None else BUDGET_RESERVE
+def _budget_ok(shared: dict, reserve_ratio: float = None) -> bool:
+    ratio = reserve_ratio if reserve_ratio is not None else BUDGET_RESERVE_RATIO
+    budget = shared.get("budget_dollars", 0)
     remaining = shared.get("budget_remaining", 0)
-    if remaining < reserve:
+    if remaining < budget * ratio:
         return False
     calls = estimate_calls_remaining(remaining, cost_log=shared.get("cost_log", []))
     return calls >= MIN_CALLS_TO_CONTINUE
@@ -573,7 +557,7 @@ async def _run_loop(shared: dict, stage: str, stage_goal: str,
     while iteration < max_iter:
         iteration += 1
 
-        if not _budget_ok(shared, BUDGET_RESERVE):
+        if not _budget_ok(shared, BUDGET_RESERVE_RATIO):
             print(f"[{stage}] Budget exhausted — exiting loop.")
             return "budget_exhausted"
 
@@ -656,7 +640,7 @@ async def _write_section(section: str, shared: dict):
         data_block = "\n\n" + data_block
 
     text, usage = await call_llm_async(
-        f"""Write the **{section}** section of a {shared.get("report_type","Literature Review").lower()} as compilable LaTeX.
+        f"""Write the **{section}** section of a research paper as compilable LaTeX.
 
 ## Topic: {shared["topic"]}
 ## Artifacts
@@ -760,7 +744,7 @@ async def _write_section(section: str, shared: dict):
 
 async def _writing_review_pass(shared: dict) -> tuple[str, list[dict]]:
     """Single writing quality gate — returns (action, major_comments)."""
-    if not _budget_ok(shared, REVIEW_RESERVE):
+    if not _budget_ok(shared, REVIEW_RESERVE_RATIO):
         return "compile", []
 
     await _assemble_tex(shared)
@@ -866,10 +850,10 @@ async def _assemble_tex(shared: dict):
 # ===========================================================================
 class Initializer(Node):
     def prep(self, shared):
-        return shared["budget_dollars"]
+        return None
 
-    def exec(self, budget):
-        return _report_type(budget)
+    def exec(self, prep_res):
+        return None
 
     def post(self, shared, prep_res, exec_res):
         task_id = str(uuid.uuid4())
@@ -879,13 +863,12 @@ class Initializer(Node):
             (out_dir / sub).mkdir(exist_ok=True)
         shared.update({
             "output_path": str(out_dir),
-            "report_type": exec_res,
             "budget_remaining": shared["budget_dollars"],
             "artifacts": {}, "bibtex_entries": [], "history": [],
             "sections_written": [], "section_bodies": {},
             "fix_attempts": 0, "cost_log": [],
         })
-        print(f"[Initializer] {out_dir} | {exec_res} | ${shared['budget_dollars']:.2f}")
+        print(f"[Initializer] {out_dir} | ${shared['budget_dollars']:.2f}")
         return "literature"
 
 
@@ -956,7 +939,7 @@ class WritingLoop(AsyncNode):
         for round_i in range(max_review_rounds + 1):
             # Write any missing sections
             for section in sections:
-                if not _budget_ok(shared, WRITE_RESERVE):
+                if not _budget_ok(shared, WRITE_RESERVE_RATIO):
                     print(f"[WritingLoop] Budget too low — stopping at section '{section}'.")
                     break
                 if len(shared.get("section_bodies", {}).get(section, "").strip()) >= MIN_SECTION_LENGTH:
@@ -972,13 +955,13 @@ class WritingLoop(AsyncNode):
                 break
             if round_i >= max_review_rounds:
                 break
-            if not _budget_ok(shared, WRITE_RESERVE):
+            if not _budget_ok(shared, WRITE_RESERVE_RATIO):
                 break
 
             # Address major comments
             valid_skills = set(shared.get("skill_index", {}).keys())
             for comment in major_comments:
-                if not _budget_ok(shared, WRITE_RESERVE):
+                if not _budget_ok(shared, WRITE_RESERVE_RATIO):
                     break
                 fix = comment.get("fix", "rewrite")
                 section = comment.get("section", "")
@@ -1134,7 +1117,6 @@ class Finisher(Node):
         (out_dir / "summary.json").write_text(
             json.dumps({
                 "topic":            shared.get("topic", ""),
-                "report_type":      shared.get("report_type", ""),
                 "budget_dollars":   shared.get("budget_dollars", 0),
                 "total_cost":       round(total, 6),
                 "budget_remaining": round(shared.get("budget_remaining", 0), 6),

@@ -40,18 +40,18 @@ Each loop runs `_run_loop`: each iteration the LLM decides `action: skill|done`,
 | `skills/skills.json` | Skill index (id + description) |
 
 ## Shared store keys
-`topic`, `budget_dollars`, `budget_remaining`, `cost_log`, `skill_index`, `skills_dir`, `output_dir`, `output_path`, `report_type`, `history`, `artifacts`, `bibtex_entries`, `sections_written`, `section_bodies`, `tex_content`, `bib_content`, `fix_attempts`, `paper_title`, `figures_used`, `api_keys`
+`topic`, `budget_dollars`, `budget_remaining`, `cost_log`, `skill_index`, `skills_dir`, `output_dir`, `output_path`, `history`, `artifacts`, `bibtex_entries`, `sections_written`, `section_bodies`, `tex_content`, `bib_content`, `fix_attempts`, `paper_title`, `figures_used`, `api_keys`
 
 `history` entries: `{"step": int, "stage": "literature"|"experiment"|"writing"|"writing_revision", "label": str, "summary": str, "cost": float, "error": str|null}`
 
-## Budget reserves
-All values are overridable via env vars (same name). Defaults live in `_DEFAULTS` in `src/nodes.py`.
+## Budget termination
+All ratios are fractions of `budget_dollars` (original budget). Overridable via env vars. Defaults in `_DEFAULTS` in `src/nodes.py`.
 
 | Env var | Default | Purpose |
 |---|---|---|
-| `BUDGET_RESERVE` | $0.03 | minimum budget to continue a research loop |
-| `WRITE_RESERVE` | $0.015 | minimum budget to write a section |
-| `REVIEW_RESERVE` | $0.008 | skip writing review if below |
+| `BUDGET_RESERVE_RATIO` | 0.05 | stop loop if `remaining < budget * 0.05` |
+| `WRITE_RESERVE_RATIO` | 0.02 | skip section write if below 2% of original budget |
+| `REVIEW_RESERVE_RATIO` | 0.01 | skip writing review if below 1% of original budget |
 | `MIN_CALLS_TO_CONTINUE` | 3 | stop loop if estimated remaining calls < this |
 
 ## Environment
