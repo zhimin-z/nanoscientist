@@ -38,8 +38,7 @@ API_KEY_REGISTRY = {
     # --- SKILL-GATED ---
     "S2_API_KEY":         "Required by paper-navigator (Semantic Scholar search and citation traversal)",
     "GITHUB_TOKEN":       "Required by paper-navigator and experiment skills (GitHub code/repo search)",
-    "HF_TOKEN":           "Required by experiment skills (Hugging Face model/dataset discovery)",
-    "OPENAI_API_KEY":     "Required by gpt-image-2 (AI-generated slides and figures via GPT-image-2)",
+    "HF_TOKEN":           "Required by experiment skills (Hugging Face model/dataset discovery)"
 }
 
 

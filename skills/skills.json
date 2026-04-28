@@ -21,10 +21,6 @@
       "description": "Structured 4-stage experiment execution: baseline reproduction, hyperparameter tuning, proposed method validation, ablation study. Integrates with evo-memory and experiment-craft."
     },
     {
-      "id": "gpt-image-2",
-      "description": "Generate and edit images via OpenAI gpt-image-2: text-to-image generation, reference-image editing, multi-reference compositing, and masked inpainting. Writes PNG/JPEG/WebP to disk."
-    },
-    {
       "id": "paper-navigator",
       "description": "Find and read academic papers: keyword search, citation traversal, arXiv monitoring, trending detection, GitHub search, SOTA lookup, and structured reading notes."
     },
@@ -54,7 +50,7 @@
     },
     {
       "id": "study-workflow",
-      "description": "Generates a research workflow diagram (Research + Writing swim-lanes) as a PNG."
+      "description": "Generates a research workflow diagram (Research + Writing swim-lanes) as a PNG via gpt-5.4-image-2."
     }
   ]
 }

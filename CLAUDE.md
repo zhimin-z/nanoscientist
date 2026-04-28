@@ -56,11 +56,10 @@ All ratios are fractions of `budget_dollars` (original budget). Overridable via 
 
 ## Environment
 Required: `OPENROUTER_API_KEY` (all nodes).
-Optional (skill-gated): `HF_TOKEN`, `GITHUB_TOKEN`, `OPENAI_API_KEY`.
+Optional (skill-gated): `HF_TOKEN`, `GITHUB_TOKEN`, `S2_API_KEY`.
 Inference: `MODEL_NAME`, `INFERENCE_BASE_URL`, `INPUT_TOKEN_COST_PER_MILLION`, `OUTPUT_TOKEN_COST_PER_MILLION`.
 Agent: `LOOKBACK` (default 3), `MAX_REVIEW_ROUNDS` (default 1), `MAX_TOOL_ROUNDS` (default 16), `MAX_LOOP_ITERATIONS` (default 20).
 Tuning (all optional; nodes.py defaults in `_DEFAULTS`, utils.py defaults as module-level constants):
-- Report thresholds: `BUDGET_QUICK_SUMMARY`, `BUDGET_LITERATURE_REVIEW`, `BUDGET_RESEARCH_REPORT`
 - Timeouts: `CODE_EXEC_TIMEOUT` (default 300s), `LATEX_COMPILE_TIMEOUT` (default 60s)
 - Tool execution: `TOOL_DEFAULT_TIMEOUT` (default 60s), `TOOL_MAX_TIMEOUT` (default 300s), `TOOL_STDOUT_LIMIT` (default 4000 chars), `TOOL_STDERR_LIMIT` (default 1000 chars)
 - Context windows: `SKILL_CONTENT_LIMIT`, `ARTIFACT_CONTEXT_CHARS`, `PRIOR_SECTION_CHARS`, `SALVAGE_CONTEXT_CHARS`, `TITLE_TOPIC_CHARS`

@@ -142,9 +142,9 @@ The teaser (usually Figure 1) shows the key result at a glance:
 
 Most papers benefit from a **study workflow diagram** — a high-level figure showing the overall research design (data collection → preprocessing → method → evaluation). This is distinct from the pipeline figure (which shows the technical method) and often appears as Figure 1 or in the Experiments section.
 
-The pipeline automatically generates `figures/workflow.png` via the `gpt-image-2` skill before assembly, using the executed plan steps as the prompt. The prompt describes two swim-lanes (Research and Writing) derived from the actual plan. No manual invocation is needed.
+The pipeline automatically generates `figures/workflow.png` via the `study-workflow` skill before assembly, using the executed plan steps as the prompt. The prompt describes two swim-lanes (Research and Writing) derived from the actual plan. No manual invocation is needed.
 
-To manually generate or regenerate a custom workflow diagram, invoke the `gpt-image-2` skill directly: provide a plain-text description of the workflow stages and it will produce a PNG suitable for inclusion in the paper. Use `--size 1536x1024` for landscape orientation. See [skills/gpt-image-2/SKILL.md](../gpt-image-2/SKILL.md) for CLI usage and prompt-craft references.
+To manually generate or regenerate a custom workflow diagram, invoke the `study-workflow` skill directly: provide a plain-text description of the workflow stages and it will produce a PNG suitable for inclusion in the paper.
 
 ### Visual Quality Matters
 
@@ -214,7 +214,7 @@ When planning is complete, pass these artifacts to `paper-writing`:
 | Figure design | [figure-design.md](references/figure-design.md) | Designing pipeline/teaser figures |
 | Experiment plan template | [experiment-plan-template.md](assets/experiment-plan-template.md) | Creating a structured experiment plan |
 | Counterintuitive strategy | [counterintuitive-planning.md](references/counterintuitive-planning.md) | Increasing acceptance odds with non-obvious planning choices |
-| Study workflow diagram | [gpt-image-2/SKILL.md](../gpt-image-2/SKILL.md) | Generating a polished workflow diagram image via GPT Image 2 |
+| Study workflow diagram | [study-workflow/SKILL.md](../study-workflow/SKILL.md) | Generating a polished workflow diagram image via gpt-5.4-image-2 |
 
 ## Handoff to Presentation
 

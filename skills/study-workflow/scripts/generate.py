@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Generate a research workflow diagram via gpt-image-2 (OpenRouter).
+"""Generate a research workflow diagram via the OpenRouter image API.
 
 Usage:
     python generate.py --output PATH --research-steps JSON_LIST --write-steps JSON_LIST --topic TITLE
 """
 import argparse
+import base64
 import json
 import os
-import subprocess
 import sys
 from pathlib import Path
 
@@ -16,27 +16,60 @@ def _build_prompt(topic: str, research_steps: list[str], write_steps: list[str])
     r_bullets = "\n".join(f"  {i+1}. {s}" for i, s in enumerate(research_steps))
     w_bullets = "\n".join(f"  {i+1}. {s}" for i, s in enumerate(write_steps))
 
-    return (
-        f'Create a clean, publication-quality research workflow diagram for the topic: "{topic}". '
-        "Style: academic infographic on a white background, bold sans-serif typography, "
-        "flat design with subtle drop shadows, color-coded swim-lanes. "
-        "Layout: two horizontal swim-lanes separated by a thin divider. "
-        "Top lane labeled \"Research\" in deep blue (#2C5F8A), containing these numbered steps as rounded rectangles: "
-        f"{r_bullets}. "
-        "Bottom lane labeled \"Writing\" in forest green (#3A6E3A), containing these numbered steps as rounded rectangles: "
-        f"{w_bullets}. "
-        "Connect boxes within each lane with solid directional arrows. "
-        "Add a vertical dashed arrow from the center of the Research lane down to the Writing lane to show knowledge transfer. "
-        "Use deep blue (#4A90D9) fills with white text for Research boxes, "
-        "forest green (#5BA55B) fills with white text for Writing boxes. "
-        "Place the topic title centered above both lanes in bold dark gray. "
-        "No extra decorations, no gradients, no clip art. Aspect ratio 3:2, landscape orientation. "
-        "The result should look like a figure from a top-tier ML/NLP conference paper."
-    )
+    return f"""Generate a camera-ready academic workflow diagram in a modern infographic style.
+
+TOPIC: {topic}
+
+STYLE:
+- Clean, minimal, publication-quality (similar to top-tier conference/journal papers)
+- Soft color palette with stage-based color coding (e.g., blue → orange → green → purple)
+- Rounded rectangles, thin borders, subtle shadows
+- Consistent iconography (line icons)
+- Clear directional arrows (left-to-right primary flow)
+
+LAYOUT:
+- Top row: Research pipeline stages (left-to-right flow)
+- Bottom row: Writing pipeline stages (left-to-right flow)
+- Vertical dashed arrow connecting center of Research row to Writing row (knowledge transfer)
+- Right side: summarized outcomes / contributions
+
+RESEARCH STAGES (top row):
+{r_bullets}
+
+WRITING STAGES (bottom row):
+{w_bullets}
+
+CONTENT STRUCTURE:
+For each stage box:
+- Title (1–2 words, bold)
+- 1-line description (action-oriented)
+- 2–3 concise bullet points (methods, data, or operations)
+
+REQUIREMENTS:
+- Avoid redundancy across boxes
+- Use short, technical phrasing (no full sentences)
+- Emphasize transformations (input → process → output)
+- Include quantitative signals if available (e.g., dataset size, scale)
+- Ensure visual balance and alignment
+
+OUTPUT:
+- High-resolution, camera-ready diagram
+- Aspect ratio 3:2, landscape orientation
+- Suitable for direct inclusion in an academic paper"""
+
+
+def _load_env(project_root: Path) -> None:
+    env_file = project_root / ".env"
+    if env_file.exists() and "OPENROUTER_API_KEY" not in os.environ:
+        for line in env_file.read_text().splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, _, v = line.partition("=")
+                os.environ.setdefault(k.strip(), v.strip())
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="Generate research workflow diagram via gpt-image-2")
+    ap = argparse.ArgumentParser(description="Generate research workflow diagram via OpenRouter image API")
     ap.add_argument("--output", required=True, help="Output PNG path")
     ap.add_argument("--research-steps", required=True, help="JSON array of research step labels")
     ap.add_argument("--write-steps", required=True, help="JSON array of writing step labels")
@@ -55,43 +88,52 @@ def main() -> None:
     if not write_steps:
         write_steps = ["Introduction", "Methods", "Results", "Conclusion"]
 
+    project_root = Path(__file__).resolve().parents[3]
+    _load_env(project_root)
+
+    api_key = os.environ.get("OPENROUTER_API_KEY", "")
+    if not api_key:
+        print("error: OPENROUTER_API_KEY not set", file=sys.stderr)
+        sys.exit(1)
+
     prompt = _build_prompt(args.topic, research_steps, write_steps)
 
-    project_root = Path(__file__).resolve().parents[3]
-    gpt_script = project_root / "skills" / "gpt-image-2" / "scripts" / "generate.py"
+    import urllib.request
+    payload = json.dumps({
+        "model": "openai/gpt-5.4-image-2",
+        "prompt": prompt,
+        "n": 1,
+        "size": "1536x1024",
+        "response_format": "b64_json",
+    }).encode()
 
-    # Load .env so OPENROUTER_API_KEY is available if not already set
-    env_file = project_root / ".env"
-    env = dict(os.environ)
-    if env_file.exists() and "OPENROUTER_API_KEY" not in env:
-        for line in env_file.read_text().splitlines():
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                k, _, v = line.partition("=")
-                env.setdefault(k.strip(), v.strip())
-
-    Path(args.output).parent.mkdir(parents=True, exist_ok=True)
-
-    result = subprocess.run(
-        [
-            sys.executable, str(gpt_script),
-            "-p", prompt,
-            "-f", args.output,
-            "--size", "1536x1024",
-            "--quality", "high",
-        ],
-        capture_output=True, text=True, errors="replace",
-        timeout=120,
-        env=env,
+    req = urllib.request.Request(
+        "https://openrouter.ai/api/v1/images/generations",
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
     )
 
-    if result.returncode == 0 and Path(args.output).exists():
-        print(args.output)
-        sys.exit(0)
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            data = json.loads(resp.read())
+    except Exception as e:
+        print(f"error: API request failed — {e}", file=sys.stderr)
+        sys.exit(1)
 
-    print(f"[workflow] gpt-image-2 failed (exit={result.returncode}): {result.stderr[:500]}",
-          file=sys.stderr)
-    sys.exit(result.returncode or 1)
+    try:
+        b64 = data["data"][0]["b64_json"]
+    except (KeyError, IndexError) as e:
+        print(f"error: unexpected response shape — {e}: {str(data)[:300]}", file=sys.stderr)
+        sys.exit(1)
+
+    out = Path(args.output)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_bytes(base64.b64decode(b64))
+    print(args.output)
 
 
 if __name__ == "__main__":

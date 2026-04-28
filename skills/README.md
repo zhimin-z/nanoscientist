@@ -26,8 +26,7 @@ Skills without `allowed-tools` use a plain LLM call with no tool access.
 | [`paper-review`](paper-review/) | Writing | Self-review before submission: 5-aspect checklist, adversarial stress-testing, figure/table checks |
 | [`paper-rebuttal`](paper-rebuttal/) | Writing | Peer-review rebuttals: score diagnosis, comment prioritization, champion strategy |
 | [`academic-slides`](academic-slides/) | Writing | Academic slide decks and conference talks: narrative arc, slide structure, .pptx generation |
-| [`gpt-image-2`](gpt-image-2/) | Any | Generate and edit images via gpt-image-2: text-to-image, reference editing, inpainting |
-| [`study-workflow`](study-workflow/) | Internal | Generates a research workflow diagram (Literature + Writing swim-lanes) as a PNG |
+| [`study-workflow`](study-workflow/) | Internal | Generates a research workflow diagram (Literature + Writing swim-lanes) as a PNG via gpt-5.4-image-2 |
 
 ## Skill Anatomy
 
