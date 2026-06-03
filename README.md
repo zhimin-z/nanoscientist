@@ -1,6 +1,6 @@
 <div align="center">
 
-<img width="800" alt="preface" src="https://github.com/user-attachments/assets/a24c9529-d27f-4d9f-aea0-d3598efef767" />
+<img width="800" alt="ChatGPT Image Jun 3, 2026, 06_17_46 PM" src="https://github.com/user-attachments/assets/9896499d-c850-492e-be0b-40e0f86b2938" />
 
 # Nano-scientist
 
