@@ -1,6 +1,6 @@
 <div align="center">
 
-<img width="800" alt="Nano-scientist logo" src="https://github.com/user-attachments/assets/fadce36b-34c2-4649-97f0-16c257b55d3d" />
+<img width="800" alt="preface" src="https://github.com/user-attachments/assets/a24c9529-d27f-4d9f-aea0-d3598efef767" />
 
 # Nano-scientist
 
